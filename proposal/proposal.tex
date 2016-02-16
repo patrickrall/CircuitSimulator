@@ -1,0 +1,122 @@
+\documentclass[11pt]{article}
+\usepackage{geometry}                
+\geometry{letterpaper}
+\usepackage[]{graphicx}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{multicol}
+
+\input{diagrams/Qcircuit.tex}
+
+\begin{document}
+
+\begin{center}
+    {\LARGE Project Proposal: A classical simulator\\ for quantum circuits dominated by Clifford gates }
+\vspace{2mm}
+{\large \\ Patrick Rall and Iskren Vankov, advised by David Gosset \\ California Institute of Technology -  \today}
+\end{center}
+
+%figure environment for multicols
+\newenvironment{Figure}
+  {\par\medskip\noindent\minipage{\linewidth}}
+  {\endminipage\par\medskip}
+
+
+\begin{multicols}{2}
+
+\subsection*{Introduction}
+Simulation of quantum circuits on classical computers is a useful tool for the verification and validation of quantum devices. As we build systems with more and more qubits, we will enter a regime where simulation will become impractical. While this is a central reason for our interest in quantum devices, extending the reach of classical computers for verification purposes will have practical applications in experiments conducted in the near future.
+
+A recent paper by Sergey Bravyi and David Gosset \cite{bravyi-gosset} describes an algorithm for quantum circuit simulation that is polynomial in the number of qubits. By utilizing the Gottesmann-Knill theorem to efficiently simulate Clifford gates, the procedure is only exponential in the number of $T$-gates used in the circuit. A preliminary Matlab implementation was capable of simulating a hidden shift quantum algorithm with 40 qubits and 50 $T$-gates on a laptop.
+
+The goal of this project is to develop an open-source application that permits other physicists to use this algorithm. It will employ a massively parallel architecture, so it can be run on hundreds of CPUs in a computer cluster. It will also be able to make use of Graphics Processing Units (GPUs) present in many laptops and desktops, which could be useful for physicists with limited access to a cluster. 
+
+In addition to creating a useful tool, this project will be an excellent learning experience. We will learn more about the inner workings of the Gottesmann-Knill theorem, stabilizer states, and mathematical tools used in modern quantum information science. We will also gain experience in writing distributed software for several architectures, and how to automatically manage highly parallel code across many computers. 
+
+
+\subsection*{Algorithm sketch}
+
+\begin{Figure}
+\[ \Qcircuit @C=1em @R=.7em {
+& \gate{T} &  \qw }  =  
+\Qcircuit @C=1.3em @R=.6em {
+  & \qw & \qw & \ctrl{1} & \qw & \gate{S} & \qw \\
+  & & \lstick{\ket{A}} & \targ \qw & \meter & \cw \cwx  
+} \]
+Figure 1: The $T$-gate gadget. By replacing all occurrences of $T$ with this gadget we can avoid using non-Clifford gates in the simulation. However, we now require several non-stabilizer states $\ket{A} =\frac{1}{\sqrt{2}} (\ket{0} + e^{i\pi/4}\ket{1})$. 
+\end{Figure}
+
+The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for computing the output probability of a string $x$ runs in
+    $$ \text{poly}(n,m) + 2^{0.5t} t^3. $$
+    Another algorithm for sampling a string $x$ from the output distribution runs in
+    $$ \text{poly}(n,m) + 2^{0.23t}t^3 w^4,$$
+    where $n$ is the number of qubits, $m$ the total number of gates, $t$ the number of $T$-gates and $w$ the size of the string $x$.
+
+\clearpage
+
+\begin{itemize}
+\setlength{\itemsep}{0em} %reduce spacing 
+    \item Both algorithms replace all occurrences of the $T$-gate with the gadget shown in Figure 1, so a Clifford-only circuit must be simulated.
+    \item Each $T$-gate gadget consumes a non-stabilizer `magic state':
+    $$\ket{A} =\frac{1}{\sqrt{2}} (\ket{0} + e^{i\pi/4}\ket{1}).$$ Thus the circuit requires an additional $\ket{A}^{\otimes t}$ state.
+    \item The state $\ket{A}^{\otimes t}$ is decomposed into a linear combination of $\chi \ll 2^n$ stabilizer states.
+    \item The action of the circuit onto each stabilizer state in this linear combination can be computed independently. This is why parallelism is so appropriate for this algorithm.
+    \item The final measurements are also performed independently on each resulting state in the linear combination.
+    \item Computing the norm of the final state can be achieved in $O(\chi t^3 \epsilon^{-2})$ for relative error $\epsilon$. \textbf{Can this procedure be parallelized too?}
+\end{itemize}
+
+
+\subsection*{Software architecture}
+
+
+\begin{description}
+    \item[Scheduler, Network Manager] (Python) \\
+        The heart of the application will perform all tasks that cannot be done in parallel. It will network together all computers that will perform computation and scan for computing resources. It will decompose the $\ket{A}^{\otimes t}$ state into $\chi$ stabilizer states and assign them to the available resources. Once parallel computation is complete it will normalize the resulting state and produce the final output.
+    \item[CPU Simulator] (C++) \\
+        A simple implementation of a stabilizer circuit simulator for a single state, aimed for high performance on a single CPU core.
+    \item[GPU Simulator] (CUDA) \\
+        A highly parallel implementation of a stabilizer circuit simulator for several states. This component must be capable of adapting to a range of GPUs with different capabilities.
+    \item[Command Line Interface] (Python) \\
+        A simple tool capable of reading circuits from a file, starting the simulation, and presenting the result.
+    \item[Web Interface] (Python, Javascript) \\
+        A web server providing a graphical user interface. It provides a tool for entering circuits \textbf{(maybe using LIQUID?)}, simulating them on demand, and gathering statistics for the results.
+\end{description}
+
+\begin{Figure}
+\hspace{0.1in}
+\includegraphics{diagrams/architecture.pdf}
+
+\vspace{-0.5in}
+
+{Figure 2: Software architecture for the simulator. The project is split into five modules described above.}
+\end{Figure}
+
+\clearpage
+
+\end{multicols}
+
+\subsection*{Time plan}
+\begin{description}
+    \item[Before Spring Term] We will read papers, regularly meet with David Gosset, and solidify our understanding of the algorithms. We will study GPU programming and evaluate challenges and limitations in building a parallel stabilizer circuit simulator.
+    \item[March] An initial implementation of a stabilizer circuit simulator in C++ should be written during spring break. That way if there are any questions on how to proceed we can immediately dive into details when term begins and regular meetings resume. Spring term begins March 28. The last week of March should be dedicated to implementing the algorithms in \cite{bravyi-gosset} in python, utilizing the working stabilizer circuit simulator.
+    \item[April] April will be dedicated to building the GPU simulator, which will be unfamiliar territory for both participants. Iskren will be taking \textit{CS179 GPU Programming} (textbook: \cite{cudahandbook}) and will be able to contribute with knowledge from the class. Both of us are experienced with the `dive in at the deep end and figure out how to swim'-approach to coding.
+    \item[May] On May 2 David Gosset \textbf{will leave Caltech (how accurate is this?)}, so the physics of the algorithm must be working in all parts of the code by then. May will be spent writing the command line interface and web interface, as well as documenting and polishing the code. We will request time on Caltech's compute cluster to test the algorithm. 
+    \item[June] The last weeks of term will be spent completing and polishing the documentation. Commencement is June 10.
+
+\end{description}
+
+
+
+
+
+\begin{thebibliography}{2}
+    \bibitem{bravyi-gosset} S. Bravyi, D. Gosset. Jan 29, 2016. ``Improved classical simulation of quantum circuits dominated by Clifford gates''. \url{http://arxiv.org/abs/1601.07601}
+    \bibitem{bravyi-smith-smolin} S. Bravyi, G. Smith, J. Smolin. Jun 3, 2015. ``Trading classical and quantum computational resources''. \url{http://arxiv.org/abs/1506.01396}
+    \bibitem{gottesman-aaronson} A. Aaronson, D. Gottesman. Jun 25 2004. ``Improved Simulation of Stabilizer Circuits''. \url{http://arxiv.org/abs/quant-ph/0406196}
+    \bibitem{cudahandbook} N. Wilt. Jun 12, 2013, Addison-Wesley Professional. ``The CUDA Handbook: A Comprehensive Guide to GPU Programming''. \url{http://www.cudahandbook.com/}
+\end{thebibliography}
+
+\end{document}
+

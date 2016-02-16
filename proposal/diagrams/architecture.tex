@@ -1,0 +1,40 @@
+\documentclass[letterpaper, margin=0.01in]{article}
+\usepackage[paperwidth=3.5in,paperheight=2.5in]{geometry}                
+
+
+\usepackage[usenames,dvipsnames]{pstricks}
+ \usepackage{epsfig}
+ \usepackage{pst-grad} % For gradients
+ \usepackage{pst-plot} % For axes
+ \usepackage[space]{grffile} % For spaces in paths
+ \usepackage{etoolbox} % For spaces in paths
+ \makeatletter % For spaces in paths
+ \patchcmd\Gread@eps{\@inputcheck#1 }{\@inputcheck"#1"\relax}{}{}
+ \makeatother
+ % User Packages:
+% 
+% 
+\begin{document}
+
+\pagenumbering{gobble}
+\psscalebox{0.8 0.8} % Change this value to rescale the drawing.
+{
+    \centering
+\begin{pspicture}(2.1,-3.0333333)(9.1,2.0333333)
+\rput[bl](0.73333336,1.8000001){Web Interface}
+\rput[bl](4.6,1.9333334){Command Line}
+\rput[bl](5.1333334,1.4666668){Interface}
+\rput[bl](1.33333334,-0.1999999){Scheduler and Network Manager}
+\rput[bl](1.4666667,-1.8){GPU}
+\rput[bl](1.1,-2.1999998){Simulator}
+\rput[bl](5.3333335,-1.8){CPU}
+\rput[bl](5.0,-2.1999998){Simulator}
+\psframe[linecolor=black, linewidth=0.04, dimen=outer](3.6,2.7333333)(0.0,1.0000001)
+\psframe[linecolor=black, linewidth=0.04, dimen=outer](7.6,2.7333333)(4.0,1.0000001)
+\psframe[linecolor=black, linewidth=0.04, dimen=outer](7.6,0.6000001)(0.0,-0.73333323)
+\psframe[linecolor=black, linewidth=0.04, dimen=outer](3.6,-1.1333332)(0.0,-2.7333333)
+\psframe[linecolor=black, linewidth=0.04, dimen=outer](7.6,-1.1333332)(4.0,-2.7333333)
+\end{pspicture}
+}
+
+\end{document}
