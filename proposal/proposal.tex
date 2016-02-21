@@ -31,7 +31,7 @@ Simulation of quantum circuits on classical computers is a useful tool for the v
 
 A recent paper by Sergey Bravyi and David Gosset \cite{bravyi-gosset} describes an algorithm for quantum circuit simulation that is polynomial in the number of qubits. By utilizing the Gottesmann-Knill theorem to efficiently simulate Clifford gates, the procedure is only exponential in the number of $T$-gates used in the circuit. A preliminary Matlab implementation was capable of simulating a hidden shift quantum algorithm with 40 qubits and 50 $T$-gates on a laptop.
 
-The goal of this project is to develop an open-source application that permits other physicists to use this algorithm. It will employ a massively parallel architecture, so it can be run on hundreds of CPUs in a computer cluster. It will also be able to make use of Graphics Processing Units (GPUs) present in many laptops and desktops, which could be useful for physicists with limited access to a cluster. 
+The goal of this project is to develop an open-source application that permits other physicists to use this algorithm. It will employ a parallel architecture, so it can be run on many CPUs in a computer cluster. A possible development we will try to implement will make use of Graphics Processing Units (GPUs) present in many laptops and desktops, which could be useful for physicists with limited access to a cluster. 
 
 In addition to creating a useful tool, this project will be an excellent learning experience. We will learn more about the inner workings of the Gottesmann-Knill theorem, stabilizer states, and mathematical tools used in modern quantum information science. We will also gain experience in writing distributed software for several architectures, and how to automatically manage highly parallel code across many computers. 
 
@@ -64,7 +64,7 @@ The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for comput
     \item The state $\ket{A}^{\otimes t}$ is decomposed into a linear combination of $\chi \ll 2^n$ stabilizer states.
     \item The action of the circuit onto each stabilizer state in this linear combination can be computed independently. This is why parallelism is so appropriate for this algorithm.
     \item The final measurements are also performed independently on each resulting state in the linear combination.
-    \item Computing the norm of the final state can be achieved in $O(\chi t^3 \epsilon^{-2})$ for relative error $\epsilon$. \textbf{Can this procedure be parallelized too?}
+    \item Computing the norm of the final state can be achieved in $O(\chi t^3 \epsilon^{-2})$ for relative error $\epsilon$.
 \end{itemize}
 
 
@@ -72,16 +72,18 @@ The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for comput
 
 
 \begin{description}
-    \item[Scheduler, Network Manager] (Python) \\
+    \item[Scheduler, Network Manager] \hfill \\
         The heart of the application will perform all tasks that cannot be done in parallel. It will network together all computers that will perform computation and scan for computing resources. It will decompose the $\ket{A}^{\otimes t}$ state into $\chi$ stabilizer states and assign them to the available resources. Once parallel computation is complete it will normalize the resulting state and produce the final output.
-    \item[CPU Simulator] (C++) \\
+    \item[CPU Simulator] \hfill \\
         A simple implementation of a stabilizer circuit simulator for a single state, aimed for high performance on a single CPU core.
-    \item[GPU Simulator] (CUDA) \\
-        A highly parallel implementation of a stabilizer circuit simulator for several states. This component must be capable of adapting to a range of GPUs with different capabilities.
-    \item[Command Line Interface] (Python) \\
-        A simple tool capable of reading circuits from a file, starting the simulation, and presenting the result.
-    \item[Web Interface] (Python, Javascript) \\
-        A web server providing a graphical user interface. It provides a tool for entering circuits \textbf{(maybe using LIQUID?)}, simulating them on demand, and gathering statistics for the results.
+    \item[Parallel CPU Simulator] \hfill \\
+        A parallel implementation of a stabilizer circuit simulator for several states. Having this module implemented is enough to assemble a closed product that can optimally run the proposed algorithm. Therefore we set this as our minimally required result, and all following modules as desirable improvements.
+    \item[Parallel GPU Simulator] \hfill \\
+        This module has the same motivation as the previous one. The difference is that it shall use GPUs instead of CPUs for a possible even further speed-up. This component must be capable of adapting to a range of GPUs with different capabilities.
+    \item[Command Line Interface]
+        A simple tool capable of reading circuits from a file, starting the simulation, and presenting the result. This will be particularly useful to users who will run the simulation on remote servers, the connection to which happens entirely through a console.
+    \item[Web Interface] \hfill \\
+        A web server providing a graphical user interface. It provides a tool for easily entering circuits and simulating them. This will be a nice visual extension to the project, allowing less technical users to operate our product.
 \end{description}
 
 \begin{Figure}
@@ -90,24 +92,24 @@ The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for comput
 
 \vspace{-0.5in}
 
-{Figure 2: Software architecture for the simulator. The project is split into five modules described above.}
+{Figure 2: Software architecture for the simulator.}
 \end{Figure}
 
-\clearpage
+%\clearpage
 
-\end{multicols}
+%\end{multicols}
 
 \subsection*{Time plan}
 \begin{description}
     \item[Before Spring Term] We will read papers, regularly meet with David Gosset, and solidify our understanding of the algorithms. We will study GPU programming and evaluate challenges and limitations in building a parallel stabilizer circuit simulator.
-    \item[March] An initial implementation of a stabilizer circuit simulator in C++ should be written during spring break. That way if there are any questions on how to proceed we can immediately dive into details when term begins and regular meetings resume. Spring term begins March 28. The last week of March should be dedicated to implementing the algorithms in \cite{bravyi-gosset} in python, utilizing the working stabilizer circuit simulator.
-    \item[April] April will be dedicated to building the GPU simulator, which will be unfamiliar territory for both participants. Iskren will be taking \textit{CS179 GPU Programming} (textbook: \cite{cudahandbook}) and will be able to contribute with knowledge from the class. Both of us are experienced with the `dive in at the deep end and figure out how to swim'-approach to coding.
-    \item[May] On May 2 David Gosset \textbf{will leave Caltech (how accurate is this?)}, so the physics of the algorithm must be working in all parts of the code by then. May will be spent writing the command line interface and web interface, as well as documenting and polishing the code. We will request time on Caltech's compute cluster to test the algorithm. 
+    \item[March] An initial implementation of a stabilizer circuit simulator, probably in C/C++, should be written during spring break. That way if there are any questions on how to proceed we can immediately dive into details when term begins and regular meetings resume. Spring term begins March 28. We will begin implementing the algorithms in \cite{bravyi-gosset}, for parallel CPUs, utilizing the working stabilizer circuit simulator.
+    \item[April] We expect to finish the parallel CPU implementation during April and have about of week of final debugging and polishing. In the remainder of the month we will start building the GPU simulator, which will be unfamiliar territory for both participants. Iskren will be taking \textit{CS179 GPU Programming} (textbook: \cite{cudahandbook}) and will be able to contribute with knowledge from the class. Both of us are experienced with the `dive in at the deep end and figure out how to swim'-approach to coding.
+    \item[May] David Gosset will leave Caltech, so the physics of the algorithm must be working in all parts of the code by then. We hope to finish our GPU implementation in mid-May and start writing the command line interface and web interface, as well as documenting and polishing the code. We will request time on Caltech's compute cluster to test the algorithm. 
     \item[June] The last weeks of term will be spent completing and polishing the documentation. Commencement is June 10.
 
 \end{description}
 
-
+\end{multicols}
 
 
 
