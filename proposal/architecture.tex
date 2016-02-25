@@ -56,17 +56,46 @@ The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for comput
 
 \clearpage
 
+\subsection*{Software architecture}
 
-\subsection*{Time plan}
-We will employ an `agile' development strategy which through regular meetings allows us to be flexible with our goals while maximizing productivity. The following time plan ensures that even if we encounter unexpected delays the product will still be useful to many physicists.
 
 \begin{description}
-    \item[Before Spring break] we will meet regularly with David Gosset, who will teach us the algorithm in detail. We will also read papers and also review \cite{cudahandbook} to evaluate challenges of a GPU implementation.\\
-    \item[By the beginning of Spring term] we will implement stabilizer state manipulation subroutines detailed in the appendix of \cite{bravyi-gosset}, likely in C++.\\
-    \item[By mid-March] we will have both algorithms detailed above running in a non-parallel environment. Transitioning from MATLAB to C++ may already yield a performance boost.
-    \item[By mid-April] we aim to prepare the existing non-parallel code to run in a massively parallel environment. This involves separating parallel and non-parallel code, scanning a network of computers for resources, and distributing information among these resources.\\
-    \item[By mid-May] we intend to port the parallel portions of our code to run efficiently on GPU. These devices have a different architecture which can be beneficial for parallel applications. Iskren will be taking \textit{CS179 GPU Programming} (textbook: \cite{cudahandbook}). \\
-    \item[By June 10] we intend to build a graphical user interface that will permit physicists to specify circuits with ease. Gates like the Toffoli gate can be implemented using the Clifford+T gate set, but doing so requires a non-trivial circuit (Figure 3 in \cite{bravyi-gosset}). A tool to simplify the process of entering and testing circuits will make the software more popular. \end{description}
+    \item[Scheduler, Network Manager] \hfill \\
+        The heart of the application will perform all tasks that cannot be done in parallel. It will network together all computers that will perform computation and scan for computing resources. It will decompose the $\ket{A}^{\otimes t}$ state into $\chi$ stabilizer states and assign them to the available resources. Once parallel computation is complete it will normalize the resulting state and produce the final output.
+    \item[CPU Simulator] \hfill \\
+        A simple implementation of a stabilizer circuit simulator for a single state, aimed for high performance on a single CPU core.
+    \item[Parallel CPU Simulator] \hfill \\
+        A parallel implementation of a stabilizer circuit simulator for several states. Having this module implemented is enough to assemble a closed product that can optimally run the proposed algorithm. Therefore we set this as our minimally required result, and all following modules as desirable improvements.
+    \item[Parallel GPU Simulator] \hfill \\
+        This module has the same motivation as the previous one. The difference is that it shall use GPUs instead of CPUs for a possible even further speed-up. This component must be capable of adapting to a range of GPUs with different capabilities.
+    \item[Command Line Interface]
+        A simple tool capable of reading circuits from a file, starting the simulation, and presenting the result. This will be particularly useful to users who will run the simulation on remote servers, the connection to which happens entirely through a console.
+    \item[Web Interface] \hfill \\
+        A web server providing a graphical user interface. It provides a tool for easily entering circuits and simulating them. This will be a nice visual extension to the project, allowing less technical users to operate our product.
+\end{description}
+
+\begin{Figure}
+\hspace{0.1in}
+\includegraphics{diagrams/architecture.pdf}
+
+\vspace{-0.5in}
+
+{Figure 2: Software architecture for the simulator.}
+\end{Figure}
+
+%\clearpage
+
+%\end{multicols}
+
+\subsection*{Time plan}
+\begin{description}
+    \item[Before Spring Term] We will read papers, regularly meet with David Gosset, and solidify our understanding of the algorithms. We will study GPU programming and evaluate challenges and limitations in building a parallel stabilizer circuit simulator.
+    \item[March] An initial implementation of a stabilizer circuit simulator, probably in C/C++, should be written during spring break. That way if there are any questions on how to proceed we can immediately dive into details when term begins and regular meetings resume. Spring term begins March 28. We will begin implementing the algorithms in \cite{bravyi-gosset}, for parallel CPUs, utilizing the working stabilizer circuit simulator.
+    \item[April] We expect to finish the parallel CPU implementation during April and have about of week of final debugging and polishing. In the remainder of the month we will start building the GPU simulator, which will be unfamiliar territory for both participants. Iskren will be taking \textit{CS179 GPU Programming} (textbook: \cite{cudahandbook}) and will be able to contribute with knowledge from the class. Both of us are experienced with the `dive in at the deep end and figure out how to swim'-approach to coding.
+    \item[May] David Gosset will leave Caltech, so the physics of the algorithm must be working in all parts of the code by then. We hope to finish our GPU implementation in mid-May and start writing the command line interface and web interface, as well as documenting and polishing the code. We will request time on Caltech's compute cluster to test the algorithm. 
+    \item[June] The last weeks of term will be spent completing and polishing the documentation. Commencement is June 10.
+
+\end{description}
 
 \end{multicols}
 
