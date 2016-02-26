@@ -24,7 +24,6 @@
   {\endminipage\par\medskip}
 
 
-\begin{multicols}{2}
 
 \subsection*{Introduction}
 Simulation of quantum systems is in general intractable on classical computers. This is a central reason for our interest in quantum devices. However, as we build systems with more and more qubits, verification of their correct operation using a classical computer will be necessary. Classical algorithms that are exponential in the number of qubits are unsuitable for this purpose.
@@ -38,15 +37,15 @@ In addition to creating a useful tool, this project will be an excellent learnin
 
 \subsection*{Algorithm Information}
 
-\begin{Figure}
-\[ \Qcircuit @C=1em @R=.7em {
-& \gate{T} &  \qw }  =  
-\Qcircuit @C=1.3em @R=.6em {
-  & \qw & \qw & \ctrl{1} & \qw & \gate{S} & \qw \\
-  & & \lstick{\ket{A}} & \targ \qw & \meter & \cw \cwx  
-} \]
-Figure 1: The $T$-gate gadget. By replacing all occurrences of $T$ with this gadget we can avoid using non-Clifford gates in the simulation. However, we now require several non-stabilizer states $\ket{A} =\frac{1}{\sqrt{2}} (\ket{0} + e^{i\pi/4}\ket{1})$. 
-\end{Figure}
+%\begin{Figure}
+%\[ \Qcircuit @C=1em @R=.7em {
+%& \gate{T} &  \qw }  =  
+%\Qcircuit @C=1.3em @R=.6em {
+%  & \qw & \qw & \ctrl{1} & \qw & \gate{S} & \qw \\
+%  & & \lstick{\ket{A}} & \targ \qw & \meter & \cw \cwx  
+%} \]
+%Figure 1: The $T$-gate gadget. By replacing all occurrences of $T$ with this gadget we can avoid using non-Clifford gates in the simulation. However, we now require several non-stabilizer states $\ket{A} =\frac{1}{\sqrt{2}} (\ket{0} + e^{i\pi/4}\ket{1})$. 
+%\end{Figure}
 
 The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for computing the output probability of a string $x$ runs in
     $$ \text{poly}(n,m) + 2^{0.5t} t^3. $$
@@ -56,6 +55,7 @@ The paper \cite{bravyi-gosset} describes two algorithms. An algorithm for comput
 
 \clearpage
 
+\begin{multicols}{2}
 
 \subsection*{Time plan}
 We will employ an `agile' development strategy which through regular meetings allows us to be flexible with our goals while maximizing productivity. The following time plan ensures that even if we encounter unexpected delays the product will still be useful to many physicists.
