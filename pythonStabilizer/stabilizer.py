@@ -42,8 +42,7 @@ class StabilizerState:
             raise ValueError("Input vector is not the right length for the vector space.")
 
         # If k = n then K spans all of \mathbb{F}^n_2
-        if (self.k == self.n):
-            return True
+        if (self.k == self.n): return True
 
         # try to write x as a linear combination of basis vectors of K
         B = self.G[:self.k].T
@@ -58,13 +57,11 @@ class StabilizerState:
             raise ValueError("Input vector is not the right length for the vector space.")
 
         # If affine space has dimension zero then phase does not matter
-        if (self.k == 0):
-            return 0
+        if (self.k == 0): return 0
 
         # x is a length n vector in basis of \mathbb{F}^n_2
         # vecx is a length k vector in basis of L(K)
 
-        # Determine vecx from x. Method: https://gist.github.com/mikofski/11192605
         # B is n*k 'basis matrix' with each row a length n basis vector
         # Let vecx and x be row vectors. Then solve equation B vecx = x+h
         B = self.G[:self.k].T
@@ -90,12 +87,10 @@ class StabilizerState:
             raise ValueError("Input vector is not the right length for the vector space.")
 
         # compute coefficient according to page 10, equation 46
-        try:
-            return np.power(2, -0.5*self.k) * np.exp(self.q(x) * 1j * np.pi/4)
-        except LookupError:
-            return 0  # if vector is not in affine space
+        try: return np.power(2, -0.5*self.k) * np.exp(self.q(x) * 1j * np.pi/4)
+        except LookupError: return 0  # if vector is not in affine space
 
-    # ------------------ Shrink --------------------
+    # ---------- Common Helper Functions -----------
 
     # helper to update D, J using equations 48, 49 on page 10
     def updateDJ(self, R):
@@ -122,6 +117,66 @@ class StabilizerState:
         self.D += np.dot(self.J, y)
         self.D = self.D % 8
 
+    # -------------- Exponential Sum ---------------
+
+    # Helper required for InnerProduct and MeasurePauli.
+    # Depends only on Q, D, J.
+    # Returns integers p, m, eps to avoid rounding error.
+    def exponentialSum(self):
+        S = [a for a in range(self.k) if self.D[a] in [2, 6]]
+        if len(S) != 0:
+            a = S[0]
+
+            # Construct R as in comment on page 12
+            R = np.identity(self.k)
+            for b in S[1:]:
+                R[b, a] += 1
+            R = R % 2
+
+            self.updateDJ(R)
+            S = [a]
+        # Now J[a, a] = 0 for all a not in S
+
+        E = [k for k in range(self.k) if k not in S]
+        M = []
+        Dimers = []  # maintain list of dimers rather than r
+
+        while len(E) > 0:
+            a = E[0]
+            K = [b for b in E[1:] if self.J[a, b] == 4]
+
+            if len(K) == 0:  # found a new monomer {a}
+                M.append(a)
+                E = E[1:]
+            else:
+                b = K[0]
+
+                # Construct R for basis change
+                R = np.identity(self.k)
+                for c in [x for x in E if x != a and x != b]:
+                    if self.J[a, c] == 4: R[c, a] += 1
+                    if self.J[b, c] == 4: R[c, b] += 1
+                R = R % 2
+
+                self.updateDJ(R)
+
+                # {a, b} form a new dimer
+                Dimers.append([a, b])
+                E = [x for x in E if x != a and x != b]
+
+        if len(S) != 0:
+            # Compute W(K,q) from Eq. 63
+            raise NotImplementedError  # Where exactly in reference 15?
+        else:
+            # Compute W_0, W_1 from Eq. 68
+            raise NotImplementedError
+
+    # evaluates the expression in the comment on page 12
+    def W(p, m, eps):
+        return eps * 2**(p/2) * np.exp(1j*np.pi*m/4)
+
+    # ------------------ Shrink --------------------
+
     # attempt to shrink the stabilizer state by eliminating a part of
     # the basis that has inner product alpha with vector xi
     def shrink(self, xi, alpha, lazy=False):
@@ -134,11 +189,9 @@ class StabilizerState:
 
         beta = (alpha + np.inner(xi, self.h)) % 2
 
-        if len(S) == 0 and beta == 1:
-            return "EMPTY"
+        if len(S) == 0 and beta == 1: return "EMPTY"
 
-        if len(S) == 0 and beta == 0:
-            return "SAME"
+        if len(S) == 0 and beta == 0: return "SAME"
 
         i = S[0]  # pick any i in S
         S.remove(i)
@@ -211,8 +264,7 @@ class StabilizerState:
         if n not in cls.dDists:
             # compute distribution given by equation 79 on page 15
             def eta(d):
-                if d == 0:
-                    return 0
+                if d == 0: return 0
 
                 product = 1
                 for a in range(1, d+1):
@@ -247,8 +299,7 @@ class StabilizerState:
         while True:
             X = np.random.random_integers(0, 1, (d, n))
 
-            if np.linalg.matrix_rank(X) == d:
-                break
+            if np.linalg.matrix_rank(X) == d: break
 
         # create the state object. __init__ gives the correct properties
         state = StabilizerState(n, k)
@@ -256,6 +307,10 @@ class StabilizerState:
         for a in range(d):
             # lazy shrink with a'th row of X
             state.shrink(X[a], 0, lazy=True)
+
+            # reset state's k after shrinking
+            state.k = k
+
         # now K = ker(X) and is in standard form
 
         state.h = np.random.random_integers(0, 1, n)
@@ -269,10 +324,8 @@ class StabilizerState:
                 state.J[a, b] = 4*np.random.random_integers(0, 1)
                 state.J[b, a] = state.J[b, a]
 
-        if not provide_d:
-            return state
-        else:
-            return state, d
+        if not provide_d: return state
+        else: return state, d
 
     # ---------------- MeasurePauli ----------------
 

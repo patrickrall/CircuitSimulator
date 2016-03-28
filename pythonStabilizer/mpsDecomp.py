@@ -45,14 +45,15 @@ for d in range(1, n+1):
     dsamples[d] = []
 
 for i in range(nsamples):
-    state, d = StabilizerState.randomStabilizerState(n, provide_d=True)
-    samples.append(state)
+    # state, d = StabilizerState.randomStabilizerState(n, provide_d=True)
+    # samples.append(state)
 
-    dsamples[d].append(n-state.k)
+    # dsamples[d].append(n-state.k)
+    pass
 
 # ---- Test 1: Distribution of k, d
 
-if True:
+if False:
     plt.clf()
     plt.title("Distribution of $n-k$ in a sample of $%0.0E$ stab. states with $n = %d$" % (nsamples, n))
     plt.ylabel("Frequency")
@@ -93,10 +94,27 @@ if False:
     plt.show()
 
 
-# for n in range(2, 5):
-#    print("\n", n)
-#    state = StabilizerState.randomStabilizerState(n)
-#
-#    for i in range(2**n):
-#        x = decToBitstring(i, n)
-#        print(i, x, state.coeff(x))
+# ---- Test 3: Some sample stabilizer statews
+
+def bitsToStr(bits):
+    string = ""
+    for bit in bits:
+        string = string + str(int(bit))
+    return string
+
+for n in range(2, 5):
+    print("\n\nStates with n =", n)
+
+    for k in range(5):
+        print("\nState %d:" % (k+1))
+        state = StabilizerState.randomStabilizerState(n)
+
+        norm = 0
+        for i in range(2**n):
+            x = decToBitstring(i, n)
+            coeff = state.coeff(x)
+            norm += np.abs(coeff)**2
+            if round(np.abs(coeff)**2, 3) > 0:
+                coeff = round(coeff, 3)
+                print(bitsToStr(x), coeff)
+        print("Norm: "+str(norm))
