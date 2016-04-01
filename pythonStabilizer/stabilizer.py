@@ -9,6 +9,7 @@
 #
 
 import numpy as np
+from copy import deepcopy
 
 
 class StabilizerState:
@@ -119,9 +120,33 @@ class StabilizerState:
 
     # -------------- Exponential Sum ---------------
 
+    # evaluates the expression in the comment on page 12
+    def evalW(p, m, eps):
+        return eps * 2**(p/2) * np.exp(1j*np.pi*m/4)
+
+    # Helpers for evaluating equations like 63, 68. For even A,B only!
+
+    # Evaluates 1 + e^{A*i*pi/4} + e^{A*i*pi/4} - e^{(A + B)*i*pi/4}
+    def Gamma(A, B):
+        if not (A % 2 == 0 and B % 2 == 0):
+            raise ValueError("A and B must be even!")
+
+        lookup = {0: 1, 2: 1j, 4: -1, 6: -1j}
+        gamma = 1 + 0j + lookup[A % 8] + lookup[B % 8] - lookup[(A + B) % 8]
+
+        if gamma == 0: return(0, 0, 0)  # eps, p, m
+        lookup = {1: 0, 1+1j: 1, 1j: 2, -1: 4, -1j: 6, 1-1j: 7}
+        return(1, 2, lookup[gamma/2])
+
+    # Evaluates 1 + e^{A*i*pi/4}
+    def partialGamma(A):
+        if not (A % 2 == 0): raise ValueError("A must be even!")
+        lookup = {0: (1, 2, 0), 2: (1, 1, 1), 4: (0, 0, 0), 6: (1, 2, 7)}
+        return lookup[A % 8]
+
     # Helper required for InnerProduct and MeasurePauli.
-    # Depends only on Q, D, J.
-    # Returns integers p, m, eps to avoid rounding error.
+    # Depends only on Q, D, J. Manipulates integers p, m, eps
+    # to avoid rounding error then evaluates to a real number.
     def exponentialSum(self):
         S = [a for a in range(self.k) if self.D[a] in [2, 6]]
         if len(S) != 0:
@@ -166,14 +191,33 @@ class StabilizerState:
 
         if len(S) != 0:
             # Compute W(K,q) from Eq. 63
-            raise NotImplementedError  # Where exactly in reference 15?
+            W = (1, 0, self.Q)
+            for c in M:
+                (eps, p, m) = self.partialGamma(self.D[c])
+                if eps == 0: return 0
+                W = (1, W[1] + p, W[2] + m)
+            for dim in Dimers:
+                (eps, p, m) = self.Gamma(self.D[dim[0]], self.D[dim[1]])
+                if eps == 0: return 0
+                W = (1, W[1] + p, W[2] + m)
+            return self.evalW(W[0], W[1], W[2])
         else:
-            # Compute W_0, W_1 from Eq. 68
-            raise NotImplementedError
+            s = S[0]
 
-    # evaluates the expression in the comment on page 12
-    def W(p, m, eps):
-        return eps * 2**(p/2) * np.exp(1j*np.pi*m/4)
+            # Compute W_0, W_1 from Eq. 68
+            def Wsigma(sigma):
+                W = (1, 0, self.Q + sigma*self.D[s])
+                for c in M:
+                    (eps, p, m) = self.partialGamma(self.D[c] + sigma*self.J[c, s])
+                    if eps == 0: return 0
+                    W = (1, W[1] + p, W[2] + m)
+                for dim in Dimers:
+                    (eps, p, m) = self.Gamma(self.D[dim[0]] + sigma*self.J[dim[0], s],
+                                             self.D[dim[1]] + sigma*self.J[dim[1], s])
+                    if eps == 0: return 0
+                    W = (1, W[1] + p, W[2] + m)
+                return self.evalW(W[0], W[1], W[2])
+            return Wsigma(0) + Wsigma(1)
 
     # ------------------ Shrink --------------------
 
@@ -246,8 +290,41 @@ class StabilizerState:
 
     # ---------------- InnerProduct ----------------
 
-    def innerProduct(state1, state2):
-        raise NotImplementedError
+    @classmethod
+    def innerProduct(cls, state1, state2):
+        if not (state1.n == state2.n):
+            raise ValueError("States do not have same dimension.")
+
+        # K <- K_1, (also copy q_1)
+        state = deepcopy(state1)
+        for b in range(state2.k, state2.n):  # not k_2+1 because of zero-indexing
+            alpha = np.dot(state2.k, state2.Gbar[b]) % 2
+            eps = state.shrink(state2.Gbar[b], alpha)  # Lazy?
+            if eps == "EMPTY": return 0
+
+        # Now K = K_1 \cap K_2
+
+        y = np.zeros(state2.k)
+        R = np.identity(np.max(state2.k, state.k))  # Is this correct?
+        for a in range(state2.k):
+            y[a] = np.dot((state.h + state2.h) % 2, state2.Gbar[a]) % 2
+            for b in range(state.k):
+                R[b, a] = np.dot(state.G[b], state2.Gbar[a]) % 2
+
+        # need a copy of state2 that I can mutate
+        state2 = deepcopy(state2)
+
+        state2.h += np.dot(y, state2.G[:state2.k])
+        state2.h = state2.h % 2
+        state2.updateQD(y)
+        state2.updateDJ(R)
+
+        # now q1, q2 are defined in the same basis
+        state.Q = state1.Q - state2.Q
+        state.D = state1.D - state2.D
+        state.J = state1.J - state2.J
+
+        return (2**(-(state1.k + state2.k)/2)) * state.exponentialSum()
 
     # ------------ RandomStabilizerState -----------
 
@@ -329,5 +406,94 @@ class StabilizerState:
 
     # ---------------- MeasurePauli ----------------
 
-    def measurePauli(self, pauli):
-        raise NotImplementedError
+    # Helper: if xi not in K, extend it to an affine space that does
+    # Doesn't return anything, instead modifies state
+    def extend(self, xi):
+        S = [a for a in range(self.n) if np.dot(xi, self.Gbar[a]) % 2 == 1]
+        T = [a for a in S if self.k < a and self.k < self.n]  # zero indexing
+
+        if len(T) == 0: return  # xi in L(K)
+
+        i = T[0]
+        S = [a for a in S if a != i]
+
+        for a in S:
+            self.Gbar[a] += self.Gbar[i]
+        self.Gbar = self.Gbar % 2
+
+        for a in S:
+            self.G[i] += self.G[a]
+        self.G[i] = self.G[i] % 2
+        # Now g^i = xi
+
+        # Swap g^i and g^k (not g^{k+1} because zero indexing)
+        self.G[[i, self.k]] = self.G[[self.k, i]]
+        self.Gbar[[i, self.k]] = self.Gbar[[self.k, i]]
+
+    # Write a pauli as P = i^m * Z(zeta) * X(xi), m in Z_4
+    # Returns the norm of the projected state Gamma = ||P_+ |K,q>||
+    # If Gamma nonzero, projects the state to P_+|K,q>
+    def measurePauli(self, m, zeta, xi):
+        if not (self.n == len(zeta) and self.n == len(xi)):
+            raise ValueError("States and Pauli do not have same dimension.")
+
+        # write zeta, xi in basis of K
+        vecZeta = np.zeros(self.k)
+        vecXi = np.zeros(self.k)
+        for a in range(self.k):
+            vecZeta[a] = np.dot(self.Gbar[a], zeta) % 2
+            vecXi[a] = np.dot(self.Gbar[a], xi) % 2
+
+        xiPrime = np.dot(vecXi, self.G[:self.k])
+
+        # compute w in {0, 2, 4, 6} using eq. 88
+        w = 2*m
+        w += 4*(np.dot(zeta, self.h) % 2)
+        w += np.dot(self.D, vecXi)
+        for b in range(self.k):
+            for a in range(b):
+                w += self.J[a, b]*vecXi[a]*vecXi[b]
+        w = w % 8
+
+        # Compute eta_0, ..., eta_{k-1} using eq. 94
+        eta = np.zeros(self.k)
+        for a in range(self.k):
+            eta[a] = vecZeta[a]
+            for b in range(self.k):
+                eta[a] += self.J[a, b]*vecXi[b]
+        eta = eta % 2
+
+        if xiPrime == xi and w in [0, 4]:
+            gamma = np.dot(eta, self.G[:self.k]) % 2
+            omegaPrime = w/4
+            alpha = (omegaPrime + np.dot(eta, self.h)) % 2  # different bases?
+
+            eps = self.shrink(gamma, alpha)
+
+            if eps == "EMPTY": return 0
+            if eps == "SAME": return 1
+            if eps == "SUCCESS": return 2**(-1/2)
+
+        if xiPrime == xi and w in [2, 6]:
+            sigma = 2 - w/2
+
+            # Update Q, D, J using equations 100, 101
+            self.Q = (self.Q + sigma) % 8
+            for a in range(self.k):
+                self.D[a] = (self.D[a] - 2*sigma*eta[a]) % 8
+            for a in range(self.k):
+                for b in range(self.k):
+                    if (a == b): continue
+                    self.J[a, b] = (self.J[a, b] + 4*eta[a]*eta[b]) % 8
+
+            return 2**(-1/2)
+
+        # remaining case: xiPrime != xi
+        self.extend(xi)
+        self.D = np.concatenate((self.D, [2*m + 4*(np.dot(zeta, self.h + xi) % 2)]))
+
+        # update J using equation 104
+        self.J = np.concatenate((self.J, [4*vecZeta]))
+        self.J = np.concatenate((self.J, np.transpose([np.concatenate((4*vecZeta, 4*m))])), 1)
+
+        return 2**(-1/2)

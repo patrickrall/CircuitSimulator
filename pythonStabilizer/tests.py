@@ -32,16 +32,14 @@ def decToBitstring(dec, n):
 
     return result
 
-# ----------------- Main -----------------------
+# ---- Test 4: Inner products of stabilizer states with themselves
+if False:
+    for n in range(2, 5):
+        print("\n\nStates with n =", n)
 
-n = 8
-nsamples = int(1e3)
-
-samples = []
-
-dsamples = {}
-for d in range(1, n+1):
-    dsamples[d] = []
+        for k in range(5):
+            state = StabilizerState.randomStabilizerState(n)
+            print("Inner product: ", StabilizerState.innerProduct(state, state))
 
 # ---- Test 3: Some sample stabilizer states
 
@@ -71,6 +69,15 @@ if True:
 
 
 # ---- Test 2: Distribution of k or d versus probability
+
+n = 8
+nsamples = int(1e3)
+
+samples = []
+
+dsamples = {}
+for d in range(1, n+1):
+    dsamples[d] = []
 
 if False:
     fig, ax = plt.subplots()
