@@ -9,6 +9,7 @@
 #
 
 import numpy as np
+from copy import deepcopy
 
 
 class StabilizerState:
@@ -96,13 +97,14 @@ class StabilizerState:
     def updateDJ(self, R):
         # equation 48
         self.D = np.dot(R, self.D)
-        for b in range(self.k):
-            for c in range(b):
+        for c in range(self.k):
+            for b in range(c):
                 self.D += self.J[b, c]*R[b]*R[:, c]
         self.D = self.D % 8
 
         # equation 49
         self.J = np.dot(np.dot(R, self.J), R.T) % 8
+        # self.J = np.dot(np.dot(R.T, self.J), R) % 8
 
     # helper to update Q, D using equations 51, 52 on page 10
     def updateQD(self, y):
@@ -119,11 +121,36 @@ class StabilizerState:
 
     # -------------- Exponential Sum ---------------
 
+    # evaluates the expression in the comment on page 12
+    def evalW(self, p, m, eps):
+        return eps * 2**(p/2) * np.exp(1j*np.pi*m/4)
+
+    # Helpers for evaluating equations like 63, 68. For even A,B only!
+
+    # Evaluates 1 + e^{A*i*pi/4} + e^{A*i*pi/4} - e^{(A + B)*i*pi/4}
+    def Gamma(self, A, B):
+        if not (A % 2 == 0 and B % 2 == 0):
+            raise ValueError("A and B must be even!")
+
+        lookup = {0: 1, 2: 1j, 4: -1, 6: -1j}
+        gamma = 1 + 0j + lookup[A % 8] + lookup[B % 8] - lookup[(A + B) % 8]
+
+        if gamma == 0: return(0, 0, 0)  # eps, p, m
+        lookup = {1: 0, 1+1j: 1, 1j: 2, -1: 4, -1j: 6, 1-1j: 7}
+        return(1, 2, lookup[gamma/2])
+
+    # Evaluates 1 + e^{A*i*pi/4}
+    def partialGamma(self, A):
+        if not (A % 2 == 0): raise ValueError("A must be even!")
+        lookup = {0: (1, 2, 0), 2: (1, 1, 1), 4: (0, 0, 0), 6: (1, 1, 7)}
+        return lookup[A % 8]
+
     # Helper required for InnerProduct and MeasurePauli.
-    # Depends only on Q, D, J.
-    # Returns integers p, m, eps to avoid rounding error.
-    def exponentialSum(self):
+    # Depends only on Q, D, J. Manipulates integers p, m, eps
+    # to avoid rounding error then evaluates to a real number.
+    def exponentialSum(self, exact=False):
         S = [a for a in range(self.k) if self.D[a] in [2, 6]]
+
         if len(S) != 0:
             a = S[0]
 
@@ -136,6 +163,8 @@ class StabilizerState:
             self.updateDJ(R)
             S = [a]
         # Now J[a, a] = 0 for all a not in S
+        for a in [k for k in range(self.k) if k not in S]:
+            if self.J[a, a] != 0: print("Assertion failed! J[%d,%d] = %d" % (a, a, self.J[a, a]))
 
         E = [k for k in range(self.k) if k not in S]
         M = []
@@ -153,27 +182,97 @@ class StabilizerState:
 
                 # Construct R for basis change
                 R = np.identity(self.k)
-                for c in [x for x in E if x != a and x != b]:
-                    if self.J[a, c] == 4: R[c, a] += 1
-                    if self.J[b, c] == 4: R[c, b] += 1
+                for c in [x for x in E if x not in [a, b]]:
+                    if self.J[a, c] == 4:
+                        R[c, a] += 1
+                    if self.J[b, c] == 4:
+                        R[c, b] += 1
                 R = R % 2
 
                 self.updateDJ(R)
+                # self.J = np.dot(np.dot(R, self.J), R.T) % 8
+                for dim in Dimers:
+                    for c in dim:
+                        if self.J[a, c] != 0: print("!Eq 60 violated: " + str(c))
+                        if self.J[b, c] != 0: print("!Eq 60 violated: " + str(c))
 
                 # {a, b} form a new dimer
                 Dimers.append([a, b])
-                E = [x for x in E if x != a and x != b]
+                E = [x for x in E if x not in [a, b]]
 
-        if len(S) != 0:
+        # verify decomposition is accurate
+        print("S: ", S)
+        print("M: ", M)
+        print("Dimers: ", Dimers)
+
+        if len(S) > 1: print("S too large")
+        for a in range(self.k):
+            if a in S and self.J[a, a] != 4: print("Eq 58 violated")
+            if a not in S and self.J[a, a] != 0: print("Eq 58 violated")
+        for a in M:
+            for b in [k for k in range(self.k) if k not in S]:
+                if self.J[a, b] != 0: print("Eq 59 violated")
+        for [a, b] in Dimers:
+            if self.J[a, b] != 4: print("Eq 60 violated")
+            for c in [k for k in range(self.k) if k not in S and k not in [a, b]]:
+                if self.J[a, c] != 0: print("Eq 60 violated")
+                if self.J[b, c] != 0: print("Eq 60 violated")
+
+        # helper to distinguish exact and non-exact cases
+        def zero():
+            if exact: return (0, 0, 0)
+            else: return 0
+
+        if len(S) == 0:
             # Compute W(K,q) from Eq. 63
-            raise NotImplementedError  # Where exactly in reference 15?
-        else:
-            # Compute W_0, W_1 from Eq. 68
-            raise NotImplementedError
+            W = (1, 0, self.Q)
+            for c in M:
+                (eps, p, m) = self.partialGamma(self.D[c])
+                if eps == 0: return zero()
+                W = (1, W[1] + p, (W[2] + m) % 8)
+            for dim in Dimers:
+                (eps, p, m) = self.Gamma(self.D[dim[0]], self.D[dim[1]])
+                if eps == 0: return zero()
+                W = (1, W[1] + p, (W[2] + m) % 8)
 
-    # evaluates the expression in the comment on page 12
-    def W(p, m, eps):
-        return eps * 2**(p/2) * np.exp(1j*np.pi*m/4)
+            if exact: return W
+            else: return self.evalW(W[0], W[1], W[2])
+        else:
+            s = S[0]
+
+            # Compute W_0, W_1 from Eq. 68
+            def Wsigma(sigma):
+                W = (1, 0, self.Q + sigma*self.D[s])
+                for c in M:
+                    (eps, p, m) = self.partialGamma(self.D[c] + sigma*self.J[c, s])
+                    if eps == 0: return zero()
+                    W = (1, W[1] + p, (W[2] + m) % 8)
+                for dim in Dimers:
+                    (eps, p, m) = self.Gamma(self.D[dim[0]] + sigma*self.J[dim[0], s],
+                                             self.D[dim[1]] + sigma*self.J[dim[1], s])
+                    if eps == 0: return zero()
+                    W = (1, W[1] + p, (W[2] + m) % 8)
+                if exact: return W
+                else: return self.evalW(W[0], W[1], W[2])
+
+            if not exact: return Wsigma(0) + Wsigma(1)
+            else:
+                (eps0, p0, m0) = Wsigma(0)
+                (eps1, p1, m1) = Wsigma(1)
+
+                if eps0 == 0: return (eps1, p1, m1)
+                if eps1 == 0: return (eps0, p0, m0)
+                # Now eps1 == eps0 == 1
+
+                if p0 != p1: raise ValueError("p0, p1 must be equal.")
+                if (m1-m0) % 2 == 1: raise ValueError("m1-m0 must be even.")
+
+                # Rearrange 2^{p0/2} e^{i pi m0/4} + 2^{p1/2} e^{i pi m1/4}
+                # To 2^(p0/2) ( 1 + e^(i pi (m1-m0)/4)) and use partialGamma
+
+                (eps, p, m) = self.partialGamma(m1-m0)
+                if eps == 0: return (0, 0, 0)
+                return (1, p+p0, (m0 + m) % 8)
 
     # ------------------ Shrink --------------------
 
@@ -185,7 +284,7 @@ class StabilizerState:
 
         # S <- { a in [k] : (xi, g) = 1 }
         # Note that a is zero-indexed.
-        S = [a for a in range(self.k) if np.inner(self.G[a], xi) % 2 == alpha]
+        S = [a for a in range(self.k) if np.inner(self.G[a], xi) % 2 == 1]
 
         beta = (alpha + np.inner(xi, self.h)) % 2
 
@@ -193,22 +292,31 @@ class StabilizerState:
 
         if len(S) == 0 and beta == 0: return "SAME"
 
-        i = S[0]  # pick any i in S
-        S.remove(i)
+        i = S[-1]  # pick any i in S, last one matches MATLAB code
+        S = S[:-1]
+
+        # import pdb; pdb.set_trace()
 
         for a in S:
             # g^a <- g^a \oplus g^i
             # compute shift matrix for G
-            shift = np.concatenate((np.zeros((a, self.n)), [self.G[i]],
-                                    np.zeros((self.n - a - 1, self.n))))
-            self.G = (self.G + shift) % 2
+            # shift = np.concatenate((np.zeros((a, self.n)), [self.G[i]],
+            #                         np.zeros((self.n - a - 1, self.n))))
+            # self.G = (self.G + shift) % 2
+            self.G[a] = (self.G[a] + self.G[i]) % 2
 
             # update D, J using equations 48, 49 on page 10
             # compute k*k basis change matrix R (equation 47)
             if not lazy:
-                R = np.identity(self.k)
-                R[a, i] = 1
-                self.updateDJ(R)
+                self.D[a] = (self.D[a] + self.D[i] + self.J[i, a]) % 8
+                self.J[a, :] += self.J[i, :]
+                self.J[:, a] += self.J[:, i]
+                if self.J[i, i]:
+                    self.J[a, a] += 4
+                self.J = self.J % 8
+                # R = np.identity(self.k)
+                # R[a, i] = 1
+                # self.updateDJ(R)
 
             # gbar^i <- gbar^i + \sum_a gbar^a
             self.Gbar[i] += self.Gbar[a]
@@ -221,18 +329,28 @@ class StabilizerState:
 
         # update D, J using equations 48, 49 on page 10
         if not lazy:
-            R = np.identity(self.k)
-            R[[i, self.k-1]] = R[[self.k-1, i]]
-            self.updateDJ(R)
+            self.D[[i, self.k-1]] = self.D[[self.k-1, i]]
+            self.J[[i, self.k-1], :] = self.J[[self.k-1, i], :]
+            self.J[:, [i, self.k-1]] = self.J[:, [self.k-1, i]]
+
+            # R = np.identity(self.k)
+            # R[[i, self.k-1]] = R[[self.k-1, i]]
+            # self.updateDJ(R)
 
         # h <- h \oplus beta*g^k
         self.h = (self.h + beta*self.G[self.k-1]) % 2
 
+        # import pdb; pdb.set_trace()
+
         if not lazy:
             # update Q, D using equations 51, 52 on page 10
-            y = np.zeros(self.k)
-            y[self.k-1] = beta
-            self.updateQD(y)
+            # y = np.zeros(self.k)
+            # y[self.k-1] = beta
+            # self.updateQD(y)
+
+            if beta != 0:
+                self.Q = (self.Q + self.D[-1]) % 8
+                self.D = (self.D + self.J[-1, :]) % 8
 
             # remove last row and column from J
             self.J = self.J[1:, 1:]
@@ -246,8 +364,44 @@ class StabilizerState:
 
     # ---------------- InnerProduct ----------------
 
-    def innerProduct(state1, state2):
-        raise NotImplementedError
+    @classmethod
+    def innerProduct(cls, state1, state2, exact=False):
+        if not (state1.n == state2.n):
+            raise ValueError("States do not have same dimension.")
+
+        # K <- K_1, (also copy q_1)
+        state = deepcopy(state1)
+        for b in range(state2.k, state2.n):  # not k_2+1 because of zero-indexing
+            alpha = np.dot(state2.k, state2.Gbar[b]) % 2
+            eps = state.shrink(state2.Gbar[b], alpha)  # Lazy?
+            if eps == "EMPTY": return 0
+
+        # Now K = K_1 \cap K_2
+
+        y = np.zeros(state2.k)
+        R = np.identity(np.max(state2.k, state.k))  # Is this correct?
+        for a in range(state2.k):
+            y[a] = np.dot((state.h + state2.h) % 2, state2.Gbar[a]) % 2
+            for b in range(state.k):
+                R[b, a] = np.dot(state.G[b], state2.Gbar[a]) % 2
+
+        # need a copy of state2 that I can mutate
+        state2 = deepcopy(state2)
+
+        state2.h += np.dot(y, state2.G[:state2.k])
+        state2.h = state2.h % 2
+        state2.updateQD(y)
+        state2.updateDJ(R)
+
+        # now q1, q2 are defined in the same basis
+        state.Q = state1.Q - state2.Q
+        state.D = state1.D - state2.D
+        state.J = state1.J - state2.J
+
+        if not exact: return (2**(-(state1.k + state2.k)/2)) * state.exponentialSum()
+        else:
+            (eps, p, m) = state.exponentialSum(exact=True)
+            return (eps, p-(state1.k + state2.k), m)
 
     # ------------ RandomStabilizerState -----------
 
@@ -329,5 +483,96 @@ class StabilizerState:
 
     # ---------------- MeasurePauli ----------------
 
-    def measurePauli(self, pauli):
-        raise NotImplementedError
+    # Helper: if xi not in K, extend it to an affine space that does
+    # Doesn't return anything, instead modifies state
+    def extend(self, xi):
+        S = [a for a in range(self.n) if np.dot(xi, self.Gbar[a]) % 2 == 1]
+        T = [a for a in S if self.k <= a and self.k < self.n]  # zero indexing
+
+        if len(T) == 0: return  # xi in L(K)
+
+        i = T[0]
+        S = [a for a in S if a != i]
+
+        for a in S:
+            self.Gbar[a] += self.Gbar[i]
+        self.Gbar = self.Gbar % 2
+
+        for a in S:
+            self.G[i] += self.G[a]
+        self.G[i] = self.G[i] % 2
+        # Now g^i = xi
+
+        # Swap g^i and g^k (not g^{k+1} because zero indexing)
+        self.G[[i, self.k]] = self.G[[self.k, i]]
+        self.Gbar[[i, self.k]] = self.Gbar[[self.k, i]]
+
+        self.k += 1
+
+    # Write a pauli as P = i^m * Z(zeta) * X(xi), m in Z_4
+    # Returns the norm of the projected state Gamma = ||P_+ |K,q>||
+    # If Gamma nonzero, projects the state to P_+|K,q>
+    def measurePauli(self, m, zeta, xi):
+        if not (self.n == len(zeta) and self.n == len(xi)):
+            raise ValueError("States and Pauli do not have same dimension.")
+
+        # write zeta, xi in basis of K
+        vecZeta = np.zeros(self.k)
+        vecXi = np.zeros(self.k)
+        for a in range(self.k):
+            vecZeta[a] = np.dot(self.Gbar[a], zeta) % 2
+            vecXi[a] = np.dot(self.Gbar[a], xi) % 2
+
+        xiPrime = np.dot(vecXi, self.G[:self.k])
+
+        # compute w in {0, 2, 4, 6} using eq. 88
+        w = 2*m
+        w += 4*(np.dot(zeta, self.h) % 2)
+        w += np.dot(self.D, vecXi)
+        for b in range(self.k):
+            for a in range(b):
+                w += self.J[a, b]*vecXi[a]*vecXi[b]
+        w = w % 8
+
+        # Compute eta_0, ..., eta_{k-1} using eq. 94
+        eta = np.zeros(self.k)
+        for a in range(self.k):
+            eta[a] = vecZeta[a]
+            for b in range(self.k):
+                eta[a] += self.J[a, b]*vecXi[b]
+        eta = eta % 2
+
+        if np.allclose(xiPrime, xi) and (w in [0, 4]):
+            gamma = np.dot(eta, self.G[:self.k]) % 2
+            omegaPrime = w/4
+            alpha = (omegaPrime + np.dot(gamma, self.h)) % 2
+
+            eps = self.shrink(gamma, alpha)
+
+            if eps == "EMPTY": return 0
+            if eps == "SAME": return 1
+            if eps == "SUCCESS": return 2**(-1/2)
+
+        if np.allclose(xiPrime, xi) and w in [2, 6]:
+            sigma = 2 - w/2
+
+            # Update Q, D, J using equations 100, 101
+            self.Q = (self.Q + sigma) % 8
+            for a in range(self.k):
+                self.D[a] = (self.D[a] - 2*sigma*eta[a]) % 8
+            for a in range(self.k):
+                for b in range(self.k):
+                    if (a == b): continue
+                    self.J[a, b] = (self.J[a, b] + 4*eta[a]*eta[b]) % 8
+
+            return 2**(-1/2)
+
+        # remaining case: xiPrime != xi
+        self.extend(xi)
+        self.D = np.concatenate((self.D, [2*m + 4*(np.dot(zeta, self.h + xi) % 2)]))
+
+        # update J using equation 104
+        self.J = np.concatenate((self.J, [4*vecZeta]))
+        self.J = np.concatenate((self.J, np.transpose([np.concatenate((4*vecZeta, 4*m))])), 1)
+
+        return 2**(-1/2)
