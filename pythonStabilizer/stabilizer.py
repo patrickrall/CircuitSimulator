@@ -97,14 +97,13 @@ class StabilizerState:
     def updateDJ(self, R):
         # equation 48
         self.D = np.dot(R, self.D)
-        for c in range(self.k):
-            for b in range(c):
-                self.D += self.J[b, c]*R[b]*R[:, c]
+        for b in range(self.k):
+            for c in range(b):
+                self.D += self.J[b, c]*R[:, b]*R[:, c]
         self.D = self.D % 8
 
         # equation 49
         self.J = np.dot(np.dot(R, self.J), R.T) % 8
-        # self.J = np.dot(np.dot(R.T, self.J), R) % 8
 
     # helper to update Q, D using equations 51, 52 on page 10
     def updateQD(self, y):
@@ -191,32 +190,33 @@ class StabilizerState:
 
                 self.updateDJ(R)
                 # self.J = np.dot(np.dot(R, self.J), R.T) % 8
-                for dim in Dimers:
-                    for c in dim:
-                        if self.J[a, c] != 0: print("!Eq 60 violated: " + str(c))
-                        if self.J[b, c] != 0: print("!Eq 60 violated: " + str(c))
+                # for dim in Dimers:
+                #     for c in dim:
+                #         if self.J[a, c] != 0: print("!Eq 60 violated: " + str(c))
+                #         if self.J[b, c] != 0: print("!Eq 60 violated: " + str(c))
 
                 # {a, b} form a new dimer
                 Dimers.append([a, b])
                 E = [x for x in E if x not in [a, b]]
 
         # verify decomposition is accurate
-        print("S: ", S)
-        print("M: ", M)
-        print("Dimers: ", Dimers)
+        # print("S: ", S)
+        # print("M: ", M)
+        # print("Dimers: ", Dimers)
 
-        if len(S) > 1: print("S too large")
-        for a in range(self.k):
-            if a in S and self.J[a, a] != 4: print("Eq 58 violated")
-            if a not in S and self.J[a, a] != 0: print("Eq 58 violated")
-        for a in M:
-            for b in [k for k in range(self.k) if k not in S]:
-                if self.J[a, b] != 0: print("Eq 59 violated")
-        for [a, b] in Dimers:
-            if self.J[a, b] != 4: print("Eq 60 violated")
-            for c in [k for k in range(self.k) if k not in S and k not in [a, b]]:
-                if self.J[a, c] != 0: print("Eq 60 violated")
-                if self.J[b, c] != 0: print("Eq 60 violated")
+        if False:
+            if len(S) > 1: print("S too large")
+            for a in range(self.k):
+                if a in S and self.J[a, a] != 4: print("Eq 58 violated")
+                if a not in S and self.J[a, a] != 0: print("Eq 58 violated")
+            for a in M:
+                for b in [k for k in range(self.k) if k not in S]:
+                    if self.J[a, b] != 0: print("Eq 59 violated")
+            for [a, b] in Dimers:
+                if self.J[a, b] != 4: print("Eq 60 violated")
+                for c in [k for k in range(self.k) if k not in S and k not in [a, b]]:
+                    if self.J[a, c] != 0: print("Eq 60 violated")
+                    if self.J[b, c] != 0: print("Eq 60 violated")
 
         # helper to distinguish exact and non-exact cases
         def zero():
@@ -292,31 +292,26 @@ class StabilizerState:
 
         if len(S) == 0 and beta == 0: return "SAME"
 
-        i = S[-1]  # pick any i in S, last one matches MATLAB code
+        i = S[-1]  # pick last
         S = S[:-1]
-
-        # import pdb; pdb.set_trace()
 
         for a in S:
             # g^a <- g^a \oplus g^i
-            # compute shift matrix for G
-            # shift = np.concatenate((np.zeros((a, self.n)), [self.G[i]],
-            #                         np.zeros((self.n - a - 1, self.n))))
-            # self.G = (self.G + shift) % 2
             self.G[a] = (self.G[a] + self.G[i]) % 2
 
             # update D, J using equations 48, 49 on page 10
             # compute k*k basis change matrix R (equation 47)
             if not lazy:
-                self.D[a] = (self.D[a] + self.D[i] + self.J[i, a]) % 8
-                self.J[a, :] += self.J[i, :]
-                self.J[:, a] += self.J[:, i]
-                if self.J[i, i]:
-                    self.J[a, a] += 4
-                self.J = self.J % 8
-                # R = np.identity(self.k)
-                # R[a, i] = 1
-                # self.updateDJ(R)
+                # newD = np.copy(self.D)
+                # newJ = np.copy(self.J)
+                # newD[a] = (newD[a] + newD[i] + newJ[i, a]) % 8
+                # newJ[a, :] += newJ[i, :]
+                # newJ[:, a] += newJ[:, i]
+                # newJ = newJ % 8
+
+                R = np.identity(self.k)
+                R[a, i] = 1
+                self.updateDJ(R)
 
             # gbar^i <- gbar^i + \sum_a gbar^a
             self.Gbar[i] += self.Gbar[a]
@@ -329,34 +324,32 @@ class StabilizerState:
 
         # update D, J using equations 48, 49 on page 10
         if not lazy:
-            self.D[[i, self.k-1]] = self.D[[self.k-1, i]]
-            self.J[[i, self.k-1], :] = self.J[[self.k-1, i], :]
-            self.J[:, [i, self.k-1]] = self.J[:, [self.k-1, i]]
+            # self.D[[i, self.k-1]] = self.D[[self.k-1, i]]
+            # self.J[[i, self.k-1], :] = self.J[[self.k-1, i], :]
+            # self.J[:, [i, self.k-1]] = self.J[:, [self.k-1, i]]
 
-            # R = np.identity(self.k)
-            # R[[i, self.k-1]] = R[[self.k-1, i]]
-            # self.updateDJ(R)
+            R = np.identity(self.k)
+            R[[i, self.k-1]] = R[[self.k-1, i]]
+            self.updateDJ(R)
 
         # h <- h \oplus beta*g^k
         self.h = (self.h + beta*self.G[self.k-1]) % 2
 
-        # import pdb; pdb.set_trace()
-
         if not lazy:
             # update Q, D using equations 51, 52 on page 10
-            # y = np.zeros(self.k)
-            # y[self.k-1] = beta
-            # self.updateQD(y)
+            y = np.zeros(self.k)
+            y[self.k-1] = beta
+            self.updateQD(y)
 
-            if beta != 0:
-                self.Q = (self.Q + self.D[-1]) % 8
-                self.D = (self.D + self.J[-1, :]) % 8
+            # if beta != 0:
+            #     self.Q = (self.Q + self.D[-1]) % 8
+            #     self.D = (self.D + self.J[-1, :]) % 8
 
             # remove last row and column from J
-            self.J = self.J[1:, 1:]
+            self.J = self.J[:-1, :-1]
 
             # remove last element from D
-            self.D = self.D[1:]
+            self.D = self.D[:-1]
 
         self.k -= 1
 
@@ -570,6 +563,8 @@ class StabilizerState:
         # remaining case: xiPrime != xi
         self.extend(xi)
         self.D = np.concatenate((self.D, [2*m + 4*(np.dot(zeta, self.h + xi) % 2)]))
+
+        import pdb; pdb.set_trace()
 
         # update J using equation 104
         self.J = np.concatenate((self.J, [4*vecZeta]))

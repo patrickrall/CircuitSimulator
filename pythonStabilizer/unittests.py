@@ -21,9 +21,10 @@ def load(psi):
     state.Gbar = np.array(psi["Gbar"])
     state.h = np.array(psi["h"])
 
-    state.D = np.array(psi["D"])[:state.k]
-    state.J = np.array(psi["J"])[:state.k, :state.k]*4
-    state.Q = psi["Q"]
+    if "D" in psi:
+        state.D = np.array(psi["D"])[:state.k]
+        state.J = np.array(psi["J"])[:state.k, :state.k]*4
+        state.Q = psi["Q"]
 
     return state
 
@@ -67,8 +68,8 @@ for test in tests:
             or m != test["m_out"]\
             or p != test["p_out"]:
         if failed == 0: print("Shrink errors:")
-        print("ExponentialSum %d failed: (%d,%d,%d) should be (%d,%d,%d)" %
-              (index, eps, p, m, test["eps_out"], test["p_out"], test["m_out"]))
+        print("ExponentialSum %d (k=%d) failed: (%d,%d,%d) should be (%d,%d,%d)" %
+              (index, state.k, eps, p, m, test["eps_out"], test["p_out"], test["m_out"]))
         failed += 1
 
 if len(tests) == 0: print("[\033[93mSkipped\033[0m] ExponentialSum")
@@ -80,16 +81,20 @@ else:
 
 f = open(directory + "ShrinkSmall.txt")
 tests = json.loads(f.read())
-# tests = []
+# tests = [tests[13]]
 
-indexcut = 0
+indexcut = 80
+# indexcut = 0
 failed = 0
 index = 0
 for test in tests:
     index += 1
     if index < indexcut: continue
 
+    # try:
     state = load(test["psi"]["psi"])
+    # except KeyError:
+    #    import pdb; pdb.set_trace()
     xi = np.array(test['xi']['xi'])
     alpha = test['alpha']
 
@@ -114,6 +119,8 @@ for test in tests:
 
         print("Shrink %d failed%s, %s wrong -> %s" % (index, lazyString, problem, status))
         failed += 1
+
+    # break
 
 if len(tests) == 0: print("[\033[93mSkipped\033[0m] Shrink")
 else:
@@ -182,9 +189,9 @@ else:
 
 f = open(directory + "MeasurePauli.txt")
 tests = json.loads(f.read())
-tests = []
+# tests = []
 
-indexcut = 0
+indexcut = 4
 failed = 0
 index = 0
 for test in tests:
@@ -196,9 +203,7 @@ for test in tests:
     zeta = np.array(test['Pauli']['Pauli']['Z'])
     m = test['Pauli']['Pauli']['m']
 
-    print(state.k)
     norm = state.measurePauli(m, zeta, xi)
-    print(state.k)
 
     failednow = False
     good, problem = compare(state, test["psi_out"]["psi_out"])
