@@ -18,8 +18,8 @@ class StabilizerState:
     # the RandomStabilizerState function. It has
     # K =\mathbb{F}^n_2 and has q(x) = 0 for all x.
     def __init__(self, n, k):
-        if n < 2:
-            raise ValueError("Vector space must have positive nonzero nontrivial dimension.")
+        if n < 1:
+            raise ValueError("Vector space must have positive nonzero dimension.")
         if k > n:
             raise ValueError("Stabilizer state dimension cannot be greater than vector space dimension.")
 
@@ -37,59 +37,29 @@ class StabilizerState:
 
     # -------------- State Vector ------------------
 
-    # Does the affine space contain vector x?
-    def contains(self, x):
-        if len(x) != self.n:
-            raise ValueError("Input vector is not the right length for the vector space.")
+    # bring into state vector format
+    def unpack(self):
+        omega = np.exp(1j*np.pi/4)
 
-        # If k = n then K spans all of \mathbb{F}^n_2
-        if (self.k == self.n): return True
+        psi = np.zeros(2**self.n).astype(complex)
+        if self.k == 0:
+            idx = int("".join(self.h.astype(str)), 2)
+            psi[idx] = omega**self.Q
+        else:
+            J = deepcopy(self.J)
+            np.fill_diagonal(J, 0)
+            J = (J/4).astype(int)
 
-        # try to write x as a linear combination of basis vectors of K
-        B = self.G[:self.k].T
-        vecx = np.linalg.lstsq(B, x + self.h)[0].astype(int) % 2
+            for zi in range(2**self.k):
+                z = np.array(list(np.binary_repr(zi, width=self.k))).astype(int)[::-1]
+                # import pdb; pdb.set_trace()
+                phase = omega**(self.Q + np.dot(self.D, z) + 2*np.dot(np.dot(z, J), z))
 
-        # check result: should succeed if x in K
-        return np.allclose(np.dot(B, vecx) % 2, (x + self.h) % 2)
+                x = ((np.dot(z, self.G[:self.k, :]) % 2) + self.h) % 2
+                idx = int(("".join(x.astype(int).astype(str)))[::-1], 2)
+                psi[idx] = phase
 
-    # Evaluate q(x) for a string in K (page 10, equation 42)
-    def q(self, x):
-        if len(x) != self.n:
-            raise ValueError("Input vector is not the right length for the vector space.")
-
-        # If affine space has dimension zero then phase does not matter
-        if (self.k == 0): return 0
-
-        # x is a length n vector in basis of \mathbb{F}^n_2
-        # vecx is a length k vector in basis of L(K)
-
-        # B is n*k 'basis matrix' with each row a length n basis vector
-        # Let vecx and x be row vectors. Then solve equation B vecx = x+h
-        B = self.G[:self.k].T
-        vecx = np.linalg.lstsq(B, x + self.h)[0].astype(int) % 2
-
-        # check result: should succeed if x in K
-        if not np.allclose(np.dot(B, vecx) % 2, (x + self.h) % 2):
-            raise LookupError("Input vector is not the affine space.")
-
-        # Evaluate equation 42
-        qx = self.Q
-        qx += np.inner(self.D, vecx)
-
-        for a in range(self.k):
-            for b in range(a):
-                qx += self.J[a, b]*vecx[a]*vecx[b]
-
-        return qx % 8
-
-    # Coefficient for x in the superposition
-    def coeff(self, x):
-        if len(x) != self.n:
-            raise ValueError("Input vector is not the right length for the vector space.")
-
-        # compute coefficient according to page 10, equation 46
-        try: return np.power(2, -0.5*self.k) * np.exp(self.q(x) * 1j * np.pi/4)
-        except LookupError: return 0  # if vector is not in affine space
+        return psi/2**(self.k/2)
 
     # ---------- Common Helper Functions -----------
 
@@ -107,6 +77,11 @@ class StabilizerState:
 
     # helper to update Q, D using equations 51, 52 on page 10
     def updateQD(self, y):
+        # type stuff
+        y = y.astype(int)
+        self.D = self.D.astype(int)
+        self.J = self.J.astype(int)
+
         # equation 51
         self.Q += np.dot(self.D, y)
         for a in range(self.k):
@@ -121,7 +96,7 @@ class StabilizerState:
     # -------------- Exponential Sum ---------------
 
     # evaluates the expression in the comment on page 12
-    def evalW(self, p, m, eps):
+    def evalW(self, eps, p, m):
         return eps * 2**(p/2) * np.exp(1j*np.pi*m/4)
 
     # Helpers for evaluating equations like 63, 68. For even A,B only!
@@ -148,6 +123,7 @@ class StabilizerState:
     # Depends only on Q, D, J. Manipulates integers p, m, eps
     # to avoid rounding error then evaluates to a real number.
     def exponentialSum(self, exact=False):
+
         S = [a for a in range(self.k) if self.D[a] in [2, 6]]
 
         if len(S) != 0:
@@ -160,10 +136,16 @@ class StabilizerState:
             R = R % 2
 
             self.updateDJ(R)
-            S = [a]
+
+            # swap a and k, such that we only need to focus
+            # on k-1)*(k-1) submatrix of J later
+            R = np.identity(self.k)
+            R[:, [a, self.k-1]] = R[:, [self.k-1, a]]
+
+            self.updateDJ(R)
+
+            S = [self.k-1]
         # Now J[a, a] = 0 for all a not in S
-        for a in [k for k in range(self.k) if k not in S]:
-            if self.J[a, a] != 0: print("Assertion failed! J[%d,%d] = %d" % (a, a, self.J[a, a]))
 
         E = [k for k in range(self.k) if k not in S]
         M = []
@@ -181,84 +163,53 @@ class StabilizerState:
 
                 # Construct R for basis change
                 R = np.identity(self.k)
+                R = np.identity(self.k)
                 for c in [x for x in E if x not in [a, b]]:
-                    if self.J[a, c] == 4:
-                        R[c, a] += 1
-                    if self.J[b, c] == 4:
-                        R[c, b] += 1
-                R = R % 2
+                    if self.J[a, c] == 4: R[c, b] += 1
+                    if self.J[b, c] == 4: R[c, a] += 1
 
+                R = R % 2
                 self.updateDJ(R)
-                # self.J = np.dot(np.dot(R, self.J), R.T) % 8
-                # for dim in Dimers:
-                #     for c in dim:
-                #         if self.J[a, c] != 0: print("!Eq 60 violated: " + str(c))
-                #         if self.J[b, c] != 0: print("!Eq 60 violated: " + str(c))
 
                 # {a, b} form a new dimer
                 Dimers.append([a, b])
                 E = [x for x in E if x not in [a, b]]
-
-        # verify decomposition is accurate
-        # print("S: ", S)
-        # print("M: ", M)
-        # print("Dimers: ", Dimers)
-
-        if False:
-            if len(S) > 1: print("S too large")
-            for a in range(self.k):
-                if a in S and self.J[a, a] != 4: print("Eq 58 violated")
-                if a not in S and self.J[a, a] != 0: print("Eq 58 violated")
-            for a in M:
-                for b in [k for k in range(self.k) if k not in S]:
-                    if self.J[a, b] != 0: print("Eq 59 violated")
-            for [a, b] in Dimers:
-                if self.J[a, b] != 4: print("Eq 60 violated")
-                for c in [k for k in range(self.k) if k not in S and k not in [a, b]]:
-                    if self.J[a, c] != 0: print("Eq 60 violated")
-                    if self.J[b, c] != 0: print("Eq 60 violated")
 
         # helper to distinguish exact and non-exact cases
         def zero():
             if exact: return (0, 0, 0)
             else: return 0
 
-        if len(S) == 0:
-            # Compute W(K,q) from Eq. 63
-            W = (1, 0, self.Q)
+        def Wsigma(sigma, s=0):
+            if (self.k == 0):
+                if exact: return (1, 0, self.Q)
+                else: return self.evalW(1, 0, self.Q)
+
+            W = (1, 0, self.Q + sigma*self.D[s])
             for c in M:
-                (eps, p, m) = self.partialGamma(self.D[c])
+                (eps, p, m) = self.partialGamma(self.D[c] + sigma*self.J[c, s])
                 if eps == 0: return zero()
                 W = (1, W[1] + p, (W[2] + m) % 8)
             for dim in Dimers:
-                (eps, p, m) = self.Gamma(self.D[dim[0]], self.D[dim[1]])
+                (eps, p, m) = self.Gamma(self.D[dim[0]] + sigma*self.J[dim[0], s],
+                                         self.D[dim[1]] + sigma*self.J[dim[1], s])
                 if eps == 0: return zero()
                 W = (1, W[1] + p, (W[2] + m) % 8)
-
             if exact: return W
             else: return self.evalW(W[0], W[1], W[2])
+
+        if len(S) == 0:
+            # Compute W(K,q) from Eq. 63
+            return Wsigma(0)
         else:
             s = S[0]
 
             # Compute W_0, W_1 from Eq. 68
-            def Wsigma(sigma):
-                W = (1, 0, self.Q + sigma*self.D[s])
-                for c in M:
-                    (eps, p, m) = self.partialGamma(self.D[c] + sigma*self.J[c, s])
-                    if eps == 0: return zero()
-                    W = (1, W[1] + p, (W[2] + m) % 8)
-                for dim in Dimers:
-                    (eps, p, m) = self.Gamma(self.D[dim[0]] + sigma*self.J[dim[0], s],
-                                             self.D[dim[1]] + sigma*self.J[dim[1], s])
-                    if eps == 0: return zero()
-                    W = (1, W[1] + p, (W[2] + m) % 8)
-                if exact: return W
-                else: return self.evalW(W[0], W[1], W[2])
 
-            if not exact: return Wsigma(0) + Wsigma(1)
+            if not exact: return Wsigma(0, s) + Wsigma(1, s)
             else:
-                (eps0, p0, m0) = Wsigma(0)
-                (eps1, p1, m1) = Wsigma(1)
+                (eps0, p0, m0) = Wsigma(0, s)
+                (eps1, p1, m1) = Wsigma(1, s)
 
                 if eps0 == 0: return (eps1, p1, m1)
                 if eps1 == 0: return (eps0, p0, m0)
@@ -302,13 +253,6 @@ class StabilizerState:
             # update D, J using equations 48, 49 on page 10
             # compute k*k basis change matrix R (equation 47)
             if not lazy:
-                # newD = np.copy(self.D)
-                # newJ = np.copy(self.J)
-                # newD[a] = (newD[a] + newD[i] + newJ[i, a]) % 8
-                # newJ[a, :] += newJ[i, :]
-                # newJ[:, a] += newJ[:, i]
-                # newJ = newJ % 8
-
                 R = np.identity(self.k)
                 R[a, i] = 1
                 self.updateDJ(R)
@@ -324,10 +268,6 @@ class StabilizerState:
 
         # update D, J using equations 48, 49 on page 10
         if not lazy:
-            # self.D[[i, self.k-1]] = self.D[[self.k-1, i]]
-            # self.J[[i, self.k-1], :] = self.J[[self.k-1, i], :]
-            # self.J[:, [i, self.k-1]] = self.J[:, [self.k-1, i]]
-
             R = np.identity(self.k)
             R[[i, self.k-1]] = R[[self.k-1, i]]
             self.updateDJ(R)
@@ -340,10 +280,6 @@ class StabilizerState:
             y = np.zeros(self.k)
             y[self.k-1] = beta
             self.updateQD(y)
-
-            # if beta != 0:
-            #     self.Q = (self.Q + self.D[-1]) % 8
-            #     self.D = (self.D + self.J[-1, :]) % 8
 
             # remove last row and column from J
             self.J = self.J[:-1, :-1]
@@ -365,31 +301,32 @@ class StabilizerState:
         # K <- K_1, (also copy q_1)
         state = deepcopy(state1)
         for b in range(state2.k, state2.n):  # not k_2+1 because of zero-indexing
-            alpha = np.dot(state2.k, state2.Gbar[b]) % 2
-            eps = state.shrink(state2.Gbar[b], alpha)  # Lazy?
-            if eps == "EMPTY": return 0
+            alpha = np.dot(state2.h, state2.Gbar[b]) % 2
+            eps = state.shrink(state2.Gbar[b], alpha)
+            if eps == "EMPTY":
+                if exact: return (0, 0, 0)
+                else: return 0
 
         # Now K = K_1 \cap K_2
 
-        y = np.zeros(state2.k)
-        R = np.identity(np.max(state2.k, state.k))  # Is this correct?
-        for a in range(state2.k):
-            y[a] = np.dot((state.h + state2.h) % 2, state2.Gbar[a]) % 2
-            for b in range(state.k):
-                R[b, a] = np.dot(state.G[b], state2.Gbar[a]) % 2
+        y = np.dot(state2.Gbar[:state2.k, :], (state.h + state2.h)) % 2
+        R = np.dot(state.G[:state.k:, :], state2.Gbar[:state2.k, :].T) % 2
+        R = np.vstack((R, np.zeros(state2.k)))
 
         # need a copy of state2 that I can mutate
         state2 = deepcopy(state2)
 
-        state2.h += np.dot(y, state2.G[:state2.k])
-        state2.h = state2.h % 2
+        # Does not affect anything
+        # state2.h += np.dot(y, state2.G[:state2.k]).astype(int)
+        # state2.h = state2.h % 2
+
         state2.updateQD(y)
         state2.updateDJ(R)
 
-        # now q1, q2 are defined in the same basis
-        state.Q = state1.Q - state2.Q
-        state.D = state1.D - state2.D
-        state.J = state1.J - state2.J
+        # now q, q2 are defined in the same basis
+        state.Q -= state2.Q % 8
+        state.D -= (state2.D[:state.k] % 8).astype(int)
+        state.J -= state2.J[:state.k, :state.k].astype(int) % 8
 
         if not exact: return (2**(-(state1.k + state2.k)/2)) * state.exponentialSum()
         else:
@@ -410,20 +347,20 @@ class StabilizerState:
         # ensure probability distribution is available for this n
         if n not in cls.dDists:
             # compute distribution given by equation 79 on page 15
-            def eta(d):
+            def logeta(d):
                 if d == 0: return 0
 
-                product = 1
+                product = 0
                 for a in range(1, d+1):
-                    product *= (1 - 2**(d - n - a))
-                    product /= (1 - 2**(-a))
+                    product += np.log2((1 - 2**(d - n - a)))
+                    product -= np.log2((1 - 2**(-a)))
 
-                return 2**(-d*(d+1)/2) * product
+                return (-d*(d+1)/2) + product
 
             # collect numerators
             dist = np.array([])
-            for d in range(n):
-                dist = np.append(dist, [eta(d)], 0)
+            for d in range(n+1):
+                dist = np.append(dist, [2**logeta(d)], 0)
 
             # normalize
             norm = sum(dist)
@@ -433,20 +370,23 @@ class StabilizerState:
             cls.dDists[n] = dist
 
         # sample d from distribution
-        sample = 1-np.random.random()  # sample from (0.0, 1.0]
-        d = 0
-        cumulative = 0
-        while cumulative < sample:
-            cumulative += cls.dDists[n][d]
-            d += 1
+        cumulative = np.cumsum(cls.dDists[n])
+        sample = np.round(1-np.random.random(), 5)  # sample from (0.0, 1.0]
 
+        for d in range(n+1):
+            if sample <= cumulative[d]:
+                break
         k = n - d
 
-        # pick random X in \mathbb{F}^{d,n}_2 with rank d
-        while True:
-            X = np.random.random_integers(0, 1, (d, n))
+        # special case
+        if (d == 0):
+            X = np.array([])
+        else:
+            # pick random X in \mathbb{F}^{d,n}_2 with rank d
+            while True:
+                X = np.random.random_integers(0, 1, (d, n))
 
-            if np.linalg.matrix_rank(X) == d: break
+                if np.linalg.matrix_rank(X) == d: break
 
         # create the state object. __init__ gives the correct properties
         state = StabilizerState(n, k)
@@ -513,10 +453,13 @@ class StabilizerState:
         vecZeta = np.zeros(self.k)
         vecXi = np.zeros(self.k)
         for a in range(self.k):
-            vecZeta[a] = np.dot(self.Gbar[a], zeta) % 2
+            vecZeta[a] = np.dot(self.G[a], zeta) % 2
             vecXi[a] = np.dot(self.Gbar[a], xi) % 2
 
-        xiPrime = np.dot(vecXi, self.G[:self.k])
+        xiPrime = 0
+        for a in range(self.k):
+            xiPrime += vecXi[a]*self.G[a]
+        xiPrime = xiPrime % 2
 
         # compute w in {0, 2, 4, 6} using eq. 88
         w = 2*m
@@ -532,19 +475,20 @@ class StabilizerState:
         for a in range(self.k):
             eta[a] = vecZeta[a]
             for b in range(self.k):
-                eta[a] += self.J[a, b]*vecXi[b]
+                eta[a] += self.J[a, b]*vecXi[b]/4
         eta = eta % 2
 
         if np.allclose(xiPrime, xi) and (w in [0, 4]):
-            gamma = np.dot(eta, self.G[:self.k]) % 2
+            # gamma = np.dot(eta, self.G[:self.k]) % 2  # CORRECT
+            gamma = np.dot(eta, self.Gbar[:self.k]) % 2  # WRONG, but matches matlab
             omegaPrime = w/4
             alpha = (omegaPrime + np.dot(gamma, self.h)) % 2
 
             eps = self.shrink(gamma, alpha)
 
-            if eps == "EMPTY": return 0
-            if eps == "SAME": return 1
-            if eps == "SUCCESS": return 2**(-1/2)
+            if eps == "EMPTY": return 0, "a"
+            if eps == "SAME": return 1, "b"
+            if eps == "SUCCESS": return 2**(-1/2), "c"
 
         if np.allclose(xiPrime, xi) and w in [2, 6]:
             sigma = 2 - w/2
@@ -553,21 +497,19 @@ class StabilizerState:
             self.Q = (self.Q + sigma) % 8
             for a in range(self.k):
                 self.D[a] = (self.D[a] - 2*sigma*eta[a]) % 8
-            for a in range(self.k):
-                for b in range(self.k):
-                    if (a == b): continue
-                    self.J[a, b] = (self.J[a, b] + 4*eta[a]*eta[b]) % 8
 
-            return 2**(-1/2)
+            # ignore a != b for some reason, MATLAB code does it too
+            # still satisfies J[a,a] = 2 D[a] mod 8
+            self.J = (self.J + 4*np.outer(eta, eta)) % 8
+
+            return 2**(-1/2), "d"
 
         # remaining case: xiPrime != xi
         self.extend(xi)
-        self.D = np.concatenate((self.D, [2*m + 4*(np.dot(zeta, self.h + xi) % 2)]))
+        newDval = (2*m + 4*(np.dot(zeta, self.h + xi) % 2)) % 8
+        self.D = np.concatenate((self.D, [newDval]))
 
-        import pdb; pdb.set_trace()
+        self.J = np.bmat([[self.J, np.array([4*vecZeta]).T],
+                         [np.array([4*vecZeta]), [[(4*m) % 8]]]])
 
-        # update J using equation 104
-        self.J = np.concatenate((self.J, [4*vecZeta]))
-        self.J = np.concatenate((self.J, np.transpose([np.concatenate((4*vecZeta, 4*m))])), 1)
-
-        return 2**(-1/2)
+        return 2**(-1/2), "e"

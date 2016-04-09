@@ -33,12 +33,15 @@ def decToBitstring(dec, n):
     return result
 
 # ---- Test 4: Inner products of stabilizer states with themselves
+np.random.seed(0)
+
 if False:
-    for n in range(2, 5):
+    for n in range(2, 10):
         print("\n\nStates with n =", n)
 
         for k in range(5):
             state = StabilizerState.randomStabilizerState(n)
+            print("State k", state.k)
             print("Inner product: ", StabilizerState.innerProduct(state, state))
 
 # ---- Test 3: Some sample stabilizer states
@@ -56,11 +59,12 @@ if True:
         for k in range(5):
             print("\nState %d:" % (k+1))
             state = StabilizerState.randomStabilizerState(n)
+            psi = state.unpack()
 
             norm = 0
             for i in range(2**n):
                 x = decToBitstring(i, n)
-                coeff = state.coeff(x)
+                coeff = psi[i]
                 norm += np.abs(coeff)**2
                 if round(np.abs(coeff)**2, 3) > 0:
                     coeff = round(coeff, 3)
