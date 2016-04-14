@@ -1,0 +1,61 @@
+CH:
+_Si
+_H
+_Ti
+CX
+_T
+_H
+_S
+
+CCX:
+___H_
+C___X
+X__C_
+_X_C_
+_C__X
+
+Ti_ ___
+_ Ti___
+_ _ _T_
+_ _ __T
+
+_C__X
+X__C_
+_X_C_
+C___X
+___H_
+___S_
+__XC_
+___H_
+CZ_M_ # Perform controlled Z, depending on a measurement
+____R # Reuse this qubit ancilla, is back in 0 state
+
+CT:
+CCX
+__T
+CCX
+
+CZ:
+_H
+CX
+_H
+
+Si:
+S
+S
+S
+
+Ti:
+S
+S
+S
+T
+
+Z:
+H
+X
+H
+
+Y: # Up to a phase
+X
+Z

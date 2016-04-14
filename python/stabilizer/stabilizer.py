@@ -1,7 +1,3 @@
-#################################################################################
-# Goal: Implement some of the algorithms in the appendix for learning purposes  #
-# ###############################################################################
-
 #
 # File: stabilizer.py
 # Defines a class for a stabilizer state
