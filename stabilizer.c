@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_math.h>
@@ -202,11 +203,244 @@ void partialGamma(int *eps, int *p, int *m, int A){
 	}
 }
 
+void Wsigma(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_complex *ans, 
+	int exact, int sigma, int s, int *M, int Mlength, int *Dimers, int DimersLength){
+	
+	if(state->k == 0){
+		if(exact == 1){
+			*eps = 1;
+			*p = 0;
+			*m = state->Q;
+			return;
+		}
+		else{
+			evalW(ans, 1, 0, state->Q);
+			return;
+		}
+	}
+	
+	//W = (1, 0, self.Q + sigma*self.D[s])
+	int tempEps = 1;
+	int tempP = 0;
+	int tempM = state->Q + sigma*((int)gsl_vector_get(state->D, s));
+	for(int i=0;i<Mlength;i++){
+		partialGamma(eps, p, m, sigma*((int)gsl_matrix_get(state->J, *(M + i), s)));
+		if(*eps == 0){
+			*p = 0;
+			*m = 0;
+			*ans = gsl_complex_rect(0, 0);
+			return;
+		}
+		tempEps = 1;
+		tempP += *p;
+		tempM = (tempM + *m) % 8;
+	}
+	for(int i=0;i<DimersLength;i++){
+		Gamma(eps, p, m, (int)gsl_vector_get(state->D, *(Dimers + 2*i)) + sigma*((int)gsl_matrix_get(state->J, *(Dimers + 2*i), s)),
+			(int)gsl_vector_get(state->D, *(Dimers + 2*i + 1)) + sigma*((int)gsl_matrix_get(state->J, *(Dimers + 2*i + 1), s)));
+		if(*eps == 0){
+			*p = 0;
+			*m = 0;
+			*ans = gsl_complex_rect(0, 0);
+			return;
+		}
+		tempEps = 1;
+		tempP += *p;
+		tempM = (tempM + *m) % 8;
+	}
+	
+	*eps = tempEps;
+	*p = tempP;
+	*m = tempM;
+	if(exact == 1){
+		evalW(ans, *eps, *p, *m);
+	}
+}
+
 //Helper required for InnerProduct and MeasurePauli.
 //Depends only on Q, D, J. Manipulates integers p, m, eps
 //to avoid rounding error then evaluates to a real number.
-void exponentialSum(struct StabilizerStates *state, int *p, int *m, int *eps){
+void exponentialSum(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_complex *ans, int exact){
+	
+	//define matrix R for later usage
+	gsl_matrix *R;
+	R = gsl_matrix_alloc(state->k, state->k);
+	
 	//S = [a for a in range(self.k) if self.D[a] in [2, 6]]
+	int *S;
+	S = malloc(state->k * sizeof(int));
+	//number of elements in S
+	int Slength = 0;
+	for(int a=0;a<state->k;a++){
+		switch((int)gsl_vector_get(state->D, a)){
+			case 2:
+			case 6:
+				*(S + Slength++) = a;
+				break;
+		}
+	}
+	
+	if(Slength > 0){
+		int a = *(S);
+		
+		//Construct R as in comment on page 12
+		gsl_matrix_set_identity(R);
+		for(int i=1;i<Slength;i++){
+			gsl_matrix_set(R, *(S+i), a, ((int)gsl_matrix_get(R, *(S+i), a) + 1) % 2);
+		}
+
+		updateDJ(state, R);
+		
+		//swap a and k, such that we only need to focus
+		//on (k-1)*(k-1) submatrix of J later
+		gsl_matrix_set_identity(R);
+		gsl_matrix_swap_columns(R, a, state->k - 1);
+
+		updateDJ(state, R);
+
+		*(S) = state->k - 1;
+		Slength = 1;
+	}
+	
+	//Now J[a, a] = 0 for all a not in S
+	
+	//E = [k for k in range(self.k) if k not in S]
+	int *E;
+	E = malloc(state->k * sizeof(int));
+	//number of elements in E
+	int Elength = 0;
+	for(int k=0;k<state->k-1;k++){
+		*(E + Elength++) = k;
+	}
+	if(Slength == 1){
+		*(E + Elength++) = *(S);
+	}
+	//tempE used later on to delete values from E
+	int *tempE;
+	tempE = malloc(state->k * sizeof(int));
+	int tempElength = 0;
+	
+	int *M;
+	M = malloc(state->k * sizeof(int));
+	int Mlength = 0;
+	int *Dimers;
+	Dimers = malloc(2 * state->k * sizeof(int));	//maintain list of dimers rather than r
+	//each dimer is two consecutive numbers in the array
+	//DimersLength is the number of dimers, not individual elements!
+	int DimersLength = 0;
+	int *K;
+	K = malloc(state->k * sizeof(int));
+	int Klength = 0;
+	
+	while(Elength > 0){
+		int a = *(E);
+		
+		Klength = 0;
+		//K = [b for b in E[1:] if self.J[a, b] == 4]
+		for(int i=1;i<Elength;i++){
+			if((int)gsl_matrix_get(state->J, a, *(E + i)) == 4){
+				*(K + Klength++) = *(E + i);
+			}
+		}
+				
+		if(Klength == 0){	//found a new monomer {a}
+			*(M + Mlength++) = a;
+			for(int i=0;i<Elength-1;i++){
+				*(E + i) = *(E + i + 1);
+			}
+			Elength--;
+		}
+		else{
+			int b = *(K);
+			
+			//Construct R for basis change
+			gsl_matrix_set_identity(R);
+			for(int i=0;i<Elength;i++){
+				if(*(E + i) != a && *(E + i) != b){
+					if((int)gsl_matrix_get(state->J, a, *(E + i)) == 4){
+						gsl_matrix_set(R, *(E + i), b, ((int)gsl_matrix_get(R, *(E + i), b) + 1) % 2);
+					}
+					if((int)gsl_matrix_get(state->J, b, *(E + i)) == 4){
+						gsl_matrix_set(R, *(E + i), a, ((int)gsl_matrix_get(R, *(E + i), a) + 1) % 2);
+					}
+				}
+			}
+			
+			updateDJ(state, R);
+
+			//{a, b} form a new dimer
+			*(Dimers + 2*DimersLength) = a;
+			*(Dimers + 2*DimersLength++ + 1) = b;
+			
+			//E = [x for x in E if x not in [a, b]]
+			memcpy(tempE, E, Elength * sizeof(int));
+			tempElength = Elength;
+			Elength = 0;
+			for(int i=0;i<tempElength;i++){
+				if(*(tempE + i) != a && *(tempE + i) != b){
+					*(E + Elength++) = *(tempE + i);
+				}
+			}
+		}
+	}
+		
+	if(Slength == 0){
+		//Compute W(K,q) from Eq. 63
+		Wsigma(state, eps, p, m, ans, exact, 0, 0, M, Mlength, Dimers, DimersLength);
+		return;
+	}
+	else{
+		//Compute W_0, W_1 from Eq. 68
+		if(exact == 0){
+			//return Wsigma(0, s) + Wsigma(1, s)
+			Wsigma(state, eps, p, m, ans, exact, 0, *(S), M, Mlength, Dimers, DimersLength);
+			gsl_complex tempAns = gsl_complex_rect(GSL_REAL(*ans), GSL_IMAG(*ans));
+			Wsigma(state, eps, p, m, ans, exact, 1, *(S), M, Mlength, Dimers, DimersLength);
+			*ans = gsl_complex_add(*ans, tempAns);
+			return;
+		}
+		else{
+			int eps0, p0, m0, eps1, p1, m1;
+			Wsigma(state, &eps0, &p0, &m0, ans, exact, 0, *(S), M, Mlength, Dimers, DimersLength);
+			Wsigma(state, &eps1, &p1, &m1, ans, exact, 1, *(S), M, Mlength, Dimers, DimersLength);
+			
+			if(eps0 == 0){
+				*eps = eps1;
+				*p = p1;
+				*m = m1;
+				return;
+			}
+			if(eps1 == 0){
+				*eps = eps0;
+				*p = p0;
+				*m = m0;
+				return;
+			}
+			
+			//Now eps1 == eps0 == 1
+			if(p0 != p1){
+				printf("ExponentialSum: p0, p1 must be equal!");
+				return;
+			}
+			if((m1-m0)%2 == 1){
+				printf("ExponentialSum: m1-m0 must be even!");
+				return;
+			}
+			
+			//Rearrange 2^{p0/2} e^{i pi m0/4} + 2^{p1/2} e^{i pi m1/4}
+			//To 2^(p0/2) ( 1 + e^(i pi (m1-m0)/4)) and use partialGamma
+			
+			partialGamma(eps, p, m, m1-m0);
+			if(eps == 0){
+				*p = 0;
+				*m = 0;
+			}
+			else{
+				*p += p0;
+				*m = (*m + m0) % 8;
+			}
+		}
+	}
 }
 
 void testUpdateDJ(){
@@ -402,11 +636,54 @@ void testPartialGamma(){
 	printf("----------------------");
 }
 
+void testExponentialSum(){
+	printf("\nTest exponentialSum:\n");
+	struct StabilizerStates state;
+	
+	state.k = 18;
+	state.Q = 0;
+	double Ddata[] = {
+		0,4,6,4,2,0,0,4,4,4,0,6,0,0,2,2,0,6
+	};
+	double Jdata[] = {
+		0,0,4,0,4,4,0,0,0,4,4,0,4,4,0,4,4,0,0,0,4,0,0,4,0,0,4,4,4,0,0,4,4,0,4,0,4,4,4,0,0,4,0,4,4,0,0,4,4,0,0,0,4,4,0,0,0,0,4,4,0,0,0,4,0,0,0,4,0,4,4,0,4,0,0,4,4,0,0,0,4,4,0,4,4,4,0,0,4,0,4,4,4,4,0,0,0,4,0,0,4,4,0,4,4,0,0,0,0,0,0,0,0,0,0,0,4,4,0,4,4,0,0,4,4,4,0,0,4,0,0,4,0,0,0,0,4,0,0,0,4,4,4,4,0,4,4,0,4,0,4,0,0,0,0,0,4,0,0,0,4,0,4,4,0,4,4,0,4,0,0,0,4,4,0,4,4,0,4,0,4,4,0,0,0,4,0,4,0,4,0,0,4,0,0,0,4,4,0,0,4,0,4,4,4,0,0,4,0,4,0,4,4,0,0,4,4,0,4,0,4,0,4,0,4,0,4,0,0,0,0,4,0,4,4,4,0,4,4,4,0,0,0,4,0,4,0,0,0,4,0,4,0,4,0,0,0,4,0,4,0,4,0,4,0,0,4,4,0,4,4,0,0,4,0,0,4,4,0,0,0,0,4,4,4,4,4,0,4,4,4,4,4,0,4,4,4,4,4,0,0,0,0,4,0,0,0,0,4,0,0,0,4,4,0,0,4,4,4,4,4,0,0,4
+	};
+	
+	gsl_vector_view DvectorView = gsl_vector_view_array(Ddata, state.k);
+	state.D = &DvectorView.vector;
+	gsl_matrix_view JmatrixView = gsl_matrix_view_array(Jdata, state.k, state.k);
+	state.J = &JmatrixView.matrix;
+	int outEps = 1, outP = 18, outM = 4, eps, p, m;
+	gsl_complex ans;
+	
+	exponentialSum(&state, &eps, &p, &m, &ans, 1);
+	
+	int isEpsWorking = 1;
+	if(eps != outEps){
+		isEpsWorking = 0;
+	}
+	int isPWorking = 1;
+	if(p != outP){
+		isPWorking = 0;
+	}
+	int isMWorking = 1;
+	if(m != outM){
+		isMWorking = 0;
+	}
+	
+	printf("eps %s\n",isEpsWorking>0?"works":"fails");
+	printf("p %s\n",isPWorking>0?"works":"fails");
+	printf("m %s\n",isMWorking>0?"works":"fails");
+	
+	printf("----------------------");
+}
+
 int main(){
 	testUpdateDJ();
 	testUpdateQD();
 	testEvalW();
 	testGamma();
 	testPartialGamma();
+	testExponentialSum();
 	return 0;
 }
