@@ -11,9 +11,12 @@ def removeComments(data):
     for line in data.splitlines():
         loc = line.find("#")
         if loc == -1:
-            output += line.replace(" ", "") + "\n"
-            continue
-        output += line[:loc].replace(" ", "") + "\n"
+            outLine = line.replace(" ", "")
+        else:
+            outLine = line[:loc].replace(" ", "")
+
+        if len(outLine) > 0:
+            output += outLine + "\n"
 
     return output
 

@@ -39,7 +39,7 @@ class StabilizerState:
 
         psi = np.zeros(2**self.n).astype(complex)
         if self.k == 0:
-            idx = int("".join(self.h.astype(str)), 2)
+            idx = int("".join(self.h.astype(int).astype(str)), 2)
             psi[idx] = omega**self.Q
         else:
             J = deepcopy(self.J)
@@ -76,7 +76,7 @@ class StabilizerState:
         # type stuff
         y = y.astype(int)
         self.D = self.D.astype(int)
-        self.J = self.J.astype(int)
+        self.J = np.array(self.J.astype(int))
 
         # equation 51
         self.Q += np.dot(self.D, y)
@@ -337,8 +337,8 @@ class StabilizerState:
 
     @classmethod
     def randomStabilizerState(cls, n, provide_d=False):
-        if n < 2:
-            raise ValueError("Vector space must have positive nonzero nontrivial dimension.")
+        if n < 1:
+            raise ValueError("Vector space must have positive nonzero dimension.")
 
         # ensure probability distribution is available for this n
         if n not in cls.dDists:
@@ -482,9 +482,9 @@ class StabilizerState:
 
             eps = self.shrink(gamma, alpha)
 
-            if eps == "EMPTY": return 0, "a"
-            if eps == "SAME": return 1, "b"
-            if eps == "SUCCESS": return 2**(-1/2), "c"
+            if eps == "EMPTY": return 0
+            if eps == "SAME": return 1
+            if eps == "SUCCESS": return 2**(-1/2)
 
         if np.allclose(xiPrime, xi) and w in [2, 6]:
             sigma = 2 - w/2
@@ -498,7 +498,7 @@ class StabilizerState:
             # still satisfies J[a,a] = 2 D[a] mod 8
             self.J = (self.J + 4*np.outer(eta, eta)) % 8
 
-            return 2**(-1/2), "d"
+            return 2**(-1/2)
 
         # remaining case: xiPrime != xi
         self.extend(xi)
@@ -508,4 +508,4 @@ class StabilizerState:
         self.J = np.bmat([[self.J, np.array([4*vecZeta]).T],
                          [np.array([4*vecZeta]), [[(4*m) % 8]]]])
 
-        return 2**(-1/2), "e"
+        return 2**(-1/2)

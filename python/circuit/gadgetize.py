@@ -4,7 +4,7 @@
 # output stabilizer projectors g(x,y) and h(x)
 #
 
-from compile import standardGate, removeComments
+from circuit.compile import standardGate, removeComments
 import numpy as np
 
 
@@ -91,6 +91,8 @@ def gadgetize(circuit, Xdict, Mdict, y):
     # set T ancillas
     for i in range(n, size): phases, xs, zs = gen(i, y[i-n], phases, xs, zs)
 
+    # return phases, xs, zs  # debug
+
     # conjugate stabilizer generators:
     tpos = n
     for line in reversed(circuit.splitlines()):
@@ -138,9 +140,15 @@ def gadgetize(circuit, Xdict, Mdict, y):
 
         for g in range(len(phases)):  # update all generators
             if std == "T":
+                # execute T gadget
                 phases[g], xs[g], zs[g] = conjugateLookup("CX", [idxs[0], tpos], phases[g], xs[g], zs[g])
                 if y[tpos-n] == 1:
                     phases[g], xs[g], zs[g] = conjugateLookup("S", idxs, phases[g], xs[g], zs[g])
+
+                # prepend HS^\dagger to t registers in compiled circuit
+                for tUpdateGate in ["H", "S", "S", "S"]:
+                    phases[g], xs[g], zs[g] = conjugateLookup(tUpdateGate, [tpos], phases[g], xs[g], zs[g])
+
                 continue
 
             phases[g], xs[g], zs[g] = conjugateLookup(std, idxs, phases[g], xs[g], zs[g])
@@ -151,9 +159,34 @@ def gadgetize(circuit, Xdict, Mdict, y):
     return phases, xs, zs
 
 
+# turn list of generators to complete list of elements
+# relies on fact that generators commute!
+def expandGenerators(proj):
+    (phases, xs, zs) = proj
+    newPhases, newXs, newZs = [], [], []
+    k = len(phases)
+    if (k == 0):
+        return ([], [], [])
+
+    n = len(xs[0])
+
+    for i in range(1, 2**k):  # omit identity
+        bitstring = list(np.binary_repr(i, width=k))
+        prod = (0, np.zeros(n), np.zeros(n))
+        for j in range(k):
+            if bitstring[j] == '1':
+                prod = (prod[0] + phases[j], prod[1] + xs[j], prod[2] + zs[j])
+
+        newPhases.append(prod[0] % 4)
+        newXs.append(prod[1] % 2)
+        newZs.append(prod[2] % 2)
+
+    return (newPhases, newXs, newZs)
+
+
 def main():
     # read data
-    filename = "examples/compiled1.circ"
+    filename = "examples/compiled2.circ"
     f = open(filename, "r")
     circuit = removeComments(f.read())
     f.close()
@@ -182,7 +215,7 @@ def main():
     print("Measurements: %d" % len(Ms))
     print("Ts: %d" % Ts)
 
-    measure = {0: 1}
+    measure = {0: 1, 1: 1}
 
     # obtain projectors
     projector = gadgetize(circuit, measure, Mdict, y)
