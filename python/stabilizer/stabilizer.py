@@ -36,6 +36,7 @@ class StabilizerState:
     # bring into state vector format
     def unpack(self):
         omega = np.exp(1j*np.pi/4)
+        self.J = np.array(self.J)
 
         psi = np.zeros(2**self.n).astype(complex)
         if self.k == 0:
@@ -405,7 +406,7 @@ class StabilizerState:
             state.J[a, a] = 2*state.D[a] % 8
             for b in range(a):
                 state.J[a, b] = 4*np.random.random_integers(0, 1)
-                state.J[b, a] = state.J[b, a]
+                state.J[b, a] = state.J[a, b]
 
         if not provide_d: return state
         else: return state, d
@@ -441,7 +442,7 @@ class StabilizerState:
     # Write a pauli as P = i^m * Z(zeta) * X(xi), m in Z_4
     # Returns the norm of the projected state Gamma = ||P_+ |K,q>||
     # If Gamma nonzero, projects the state to P_+|K,q>
-    def measurePauli(self, m, zeta, xi):
+    def measurePauli(self, m, zeta, xi, give_status=False):
         if not (self.n == len(zeta) and self.n == len(xi)):
             raise ValueError("States and Pauli do not have same dimension.")
 
@@ -475,16 +476,16 @@ class StabilizerState:
         eta = eta % 2
 
         if np.allclose(xiPrime, xi) and (w in [0, 4]):
-            # gamma = np.dot(eta, self.G[:self.k]) % 2  # CORRECT
-            gamma = np.dot(eta, self.Gbar[:self.k]) % 2  # WRONG, but matches matlab
+            # gamma = np.dot(eta, self.G[:self.k]) % 2  # matches PAPER
+            gamma = np.dot(eta, self.Gbar[:self.k]) % 2  # matches MATLAB
             omegaPrime = w/4
             alpha = (omegaPrime + np.dot(gamma, self.h)) % 2
 
             eps = self.shrink(gamma, alpha)
 
-            if eps == "EMPTY": return 0
-            if eps == "SAME": return 1
-            if eps == "SUCCESS": return 2**(-1/2)
+            if eps == "EMPTY": return (0, "EMPTY") if give_status else 0
+            if eps == "SAME": return (1, "SAME") if give_status else 1
+            if eps == "SUCCESS": return (2**(-1/2), "SHRINK") if give_status else 2**(-1/2)
 
         if np.allclose(xiPrime, xi) and w in [2, 6]:
             sigma = 2 - w/2
@@ -496,9 +497,16 @@ class StabilizerState:
 
             # ignore a != b for some reason, MATLAB code does it too
             # still satisfies J[a,a] = 2 D[a] mod 8
-            self.J = (self.J + 4*np.outer(eta, eta)) % 8
+            self.J = (self.J + 4*np.outer(eta, eta)) % 8  # original
 
-            return 2**(-1/2)
+            # code that upholds a != b
+            # for a in range(self.k):
+            #     for b in range(self.k):
+            #         # if (a != b):
+            #         self.J[a, b] += 4*np.outer(eta, eta)[a, b]
+            # self.J = self.J % 8
+
+            return (2**(-1/2), "PERMUTE") if give_status else 2**(-1/2)
 
         # remaining case: xiPrime != xi
         self.extend(xi)
@@ -508,4 +516,4 @@ class StabilizerState:
         self.J = np.bmat([[self.J, np.array([4*vecZeta]).T],
                          [np.array([4*vecZeta]), [[(4*m) % 8]]]])
 
-        return 2**(-1/2)
+        return (2**(-1/2), "EXTEND") if give_status else 2**(-1/2)

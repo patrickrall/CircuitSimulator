@@ -11,7 +11,7 @@ import circuit.compile
 import circuit.gadgetize
 from stabilizer.stabilizer import StabilizerState
 from decompose import decompose
-from multiprocessing.pool import ThreadPool
+# from multiprocessing.pool import ThreadPool
 
 
 def main(argv):
@@ -174,6 +174,7 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
 
     print("Gprime:")
     printProjector(Gprime)
+    print(Gprime)
     print("Hprime:")
     printProjector(Hprime)
     print("u: %d" % u)
@@ -205,14 +206,14 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
         else:
             # compute decomposition if not already done so
             if (type(decomposed) == bool):
-                norm, decomposed = decompose(Ts, 0.001)
+                norm, decomposed = decompose(Ts, 0.0001)
                 print(decomposed, norm)
 
             # Evaluate the following expression:
             # || \Pi |H^{\otimes t}> ||^2 ~= (2^t / L) \sum^L_(i=1) || <\theta_i| \Pi |H^(\otimes t)> ||^2
             # = (2^t / L) \sum^L_(i=1) || (1/norm)  <\theta_i| \Pi (\sum^\chi_a |\phi_a>) ||^2
 
-            L = int(2000)
+            L = int(1000)
             # number of random stabilizer states = 1/(p_f \eps^2), such that with probability (1-p_f) the  result
             # \alpha satisfies ||\Pi |H^{\otimes t}> ||^2 (1-\eps) < \alpha < ||\Pi |H^{\otimes t}> ||^2 (1+\eps):
 
@@ -224,23 +225,42 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
 
                 projfactor = 1
                 # project theta down to \Pi |\theta>
+
+                def printState(x):
+                    outstring = "["
+                    for comp in x:
+                        outstring += " %0.3f+%0.3fi " % (comp.real, comp.imag)
+                    outstring += "]"
+                    print(outstring)
+
+                # print("\n\nTry:")
+                # printState(theta.unpack())
+                factors = []
                 for g in range(len(phases)):
+                    # print((phases[g], zs[g], xs[g]))
                     res = theta.measurePauli(phases[g], zs[g], xs[g])
+                    # printState(theta.unpack())
+                    # print("Out: ", res)
+
                     projfactor *= res
-                    # if res == 0:
-                    #     return 0, 0
+                    factors.append(res)
+
+                    if (res == 0):  # don't need to consider more
+                        break
+
+                if (len(factors) == 3 and factors[2] != 1):
+                    print(factors)
 
                 subtotal = 0  # <\theta_i| \Pi (\sum^\chi_a |\phi_a>)
 
                 for i in range(0, 2**len(decomposed)):
                     Lbits = list(np.binary_repr(i, width=len(decomposed)))
                     bitstring = np.zeros(Ts)
-                    k = 0
                     for idx in range(len(Lbits)):
                         if Lbits[idx] == '1':
-                            k += 1
                             bitstring += decomposed[idx]
-                    bitstring = bitstring.astype(int)
+                    bitstring = bitstring.astype(int) % 2
+                    k = sum(bitstring)
                     # print("nya1", bitstring)
 
                     # initialize stabilizer state
@@ -249,30 +269,42 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
                     # insert basis of affine space into G
                     # space is supported whenever xtilde = 1
                     rowidx = 0
-                    for xtildeidx in range(k):
+                    for xtildeidx in range(Ts):
                         if bitstring[xtildeidx] == 1:
                             phi.G[rowidx] = np.zeros(Ts)
                             phi.G[rowidx][xtildeidx] = 1
                             rowidx += 1
 
-                    # make sure matrix isn't singular
+                    # make sure matrix has determinant 1, ensuring existence of inverse
                     count = 0
-                    while np.linalg.matrix_rank(phi.G) != Ts:
+                    while np.abs(np.linalg.det(phi.G)) != 1:
                         count += 1
                         if count > 1e3:
+                            print("k: ", k)
+                            print("bitstring: ", bitstring)
+                            print("Lbits: ", Lbits)
+
                             print(phi.G)
+                            import pdb; pdb.set_trace()
                             raise ValueError("can't make non-singular")
 
                         # randomly sample remaining rows
                         for i in range(k, Ts):
                             phi.G[i] = np.random.random_integers(0, 1, (Ts))
 
-                    phi.Gbar = np.linalg.inv(phi.G).T
+                    phi.Gbar = np.linalg.inv(phi.G).T % 2
+                    if 0.5 in phi.Gbar:
+                        print(phi.Gbar)
+                        raise ValueError("bad inverse")
 
                     # add <\theta_i| \Pi |\phi_a>
-                    subtotal += StabilizerState.innerProduct(theta, phi)
+                    try:
+                        subtotal += StabilizerState.innerProduct(theta, phi)
+                    except IndexError:
+                        import pdb; pdb.set_trace()
 
                 # add || <\theta_i| \Pi |H^(\otimes t)> ||^2
+                return np.abs(projfactor*subtotal)**2, projfactor  # norm necessary?
                 return np.abs(projfactor*subtotal/norm)**2
 
             # parallelize samples over L
@@ -282,13 +314,29 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
             #     results.append(pool.apply_async(sampleState, ()))
 
             total = 0  # sum without the factor (2^t / L)
+            stats = {}
+            print("Stats:")
             for i in range(L):
-                total += sampleState()
+                item, proj = sampleState()
+                total += item
+                x = np.abs(proj)**2
+                if (x in stats): stats[x] += 1
+                else: stats[x] = 1
+
                 # total += results[i].get()
 
-            print("total:", total/L)
+            x = 0
+            for item in stats:
+                x += 1
+                print("%0.3f -> %d = %0.3f" % (item, stats[item], 100*stats[item]/L))
+            print("So many: ", x)
 
+            # print("total:", total/L)
+
+            # maybe (2**Ts / L) isn't necessary?
+            # unless one of the projectors is empty...
             result = (2**Ts / L)*total
+            result = total  # norm necessary?
 
         if isG:
             numerator = result
@@ -302,6 +350,7 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
 
     result = (2**u)*numerator/denominator
     print("Probability of 0: %f" % result)
+    print("Rounded Probability of 0: %0.2f" % np.round(result, 2))
 
 
 def evalStabilizer(m, xi, zeta, bitstring, stateseed):

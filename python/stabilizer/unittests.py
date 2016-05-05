@@ -45,7 +45,7 @@ def compare(state, psi):
 
 f = open(directory + "ExponentialSum.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 # indexcut = 267
 indexcut = 0
@@ -83,7 +83,7 @@ else:
 
 f = open(directory + "ShrinkSmall.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 indexcut = 0
 failed = 0
@@ -133,7 +133,7 @@ else:
 f = open(directory + "InnerProduct.txt")
 tests = json.loads(f.read())
 tests = tests[:100]
-# tests = []
+tests = []
 
 indexcut = 2
 failed = 0
@@ -163,7 +163,7 @@ else:
 # -------------------- Extend -------------------    ktrue = test['psi']['psi']['k']
 f = open(directory + "Extend.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 indexcut = 0
 failed = 0
@@ -205,7 +205,7 @@ for test in tests:
     zeta = np.array(test['Pauli']['Pauli']['Z'])
     m = test['Pauli']['Pauli']['m']
 
-    norm, case = state.measurePauli(m, zeta, xi)
+    norm, case = state.measurePauli(m, zeta, xi, give_status=True)
 
     failednow = False
     good, problem = compare(state, test["psi_out"]["psi_out"])

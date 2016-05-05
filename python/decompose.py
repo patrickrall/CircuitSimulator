@@ -45,7 +45,6 @@ def decompose(t, delta):
     print("Found in %d steps, k=%d!" % (count, k))
 
     norm = np.sqrt(2**k * Z_L)
-    print("Z(L) ", Z_L)
     # norm = np.sqrt(2**k)
     # norm = innerProd
 
