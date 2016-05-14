@@ -599,19 +599,25 @@ int shrink(struct StabilizerStates *state, gsl_vector *xi, int alpha, int lazy){
 	if(lazy != 1){
 		//update Q, D using equations 51, 52 on page 10
 		gsl_vector *y;
-		y = gsl_vector_calloc(state->k);
+		y = gsl_vector_calloc(state->n);
 		gsl_vector_set(y, state->k-1, beta);
 		updateQD(state, y);
 		
 		//remove last row and column from J
-		gsl_matrix_view newJ = gsl_matrix_submatrix(state->J, 0, 0, state->k-1, state->k-1);
+		//gsl_matrix_view newJ = gsl_matrix_submatrix(state->J, 0, 0, state->k-1, state->k-1);
 		//gsl_matrix_free(state->J);
-		state->J = &newJ.matrix;
+		//state->J = &newJ.matrix;
+		for(int i=state->k-1;i<state->n;i++){
+			for(int j=state->k-1;j<state->n;j++){
+				gsl_matrix_set(state->J, i, j, 0);
+			}
+			gsl_vector_set(state->D, i, 0);
+		}
 		
 		//remove last element from D
-		gsl_vector_view newD = gsl_vector_subvector(state->D, 0, state->k-1);
+		//gsl_vector_view newD = gsl_vector_subvector(state->D, 0, state->k-1);
 		//gsl_vector_free(state->D);
-		state->D = &newD.vector;
+		//state->D = &newD.vector;)
 	}
 	
 	state->k--;
