@@ -946,9 +946,12 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	
 	//write zeta, xi in basis of K
 	gsl_vector *vecZeta, *vecXi, *xiPrime, *tempVector;
-	vecZeta = gsl_vector_alloc(state->k);
-	vecXi = gsl_vector_alloc(state->k);
-	xiPrime = gsl_vector_alloc(state->k);
+	vecZeta = gsl_vector_alloc(state->n);
+	gsl_vector_set_zero(vecZeta);
+	vecXi = gsl_vector_alloc(state->n);
+	gsl_vector_set_zero(vecXi);
+	xiPrime = gsl_vector_alloc(state->n);
+	gsl_vector_set_zero(xiPrime);
 	tempVector = gsl_vector_alloc(state->n);
 	double tempInt;
 	
@@ -961,7 +964,6 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 		gsl_blas_ddot(tempVector, xi, &tempInt);
 		gsl_vector_set(vecXi, a, mod((int)tempInt, 2));
 	}
-	
 	for(int a=0;a<state->k;a++){
 		gsl_matrix_get_row(tempVector, state->G, a);
 		gsl_vector_scale(tempVector, gsl_vector_get(vecXi,a));
@@ -987,7 +989,7 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	
 	//Compute eta_0, ..., eta_{k-1} using eq. 94
 	gsl_vector *eta;
-	eta = gsl_vector_alloc(state->k);
+	eta = gsl_vector_alloc(state->n);
 	gsl_vector_memcpy(eta, vecZeta);
 	for(int a=0;a<state->k;a++){
 		for(int b=0;b<state->k;b++){
@@ -1009,8 +1011,9 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 		if(w==0 || w==4){
 			gsl_vector *gamma;
 			gamma = gsl_vector_alloc(state->n);
-			gsl_matrix_view Gbark = gsl_matrix_submatrix(state->Gbar, 0, 0, state->k, state->n);
-			gsl_blas_dgemv(CblasNoTrans, 1., &Gbark.matrix, eta, 0., gamma);
+			//gsl_matrix_view Gbark = gsl_matrix_submatrix(state->Gbar, 0, 0, state->k, state->n);
+			//gsl_blas_dgemv(CblasNoTrans, 1., &Gbark.matrix, eta, 0., gamma);
+			gsl_blas_dgemv(CblasNoTrans, 1., state->Gbar, eta, 0., gamma);
 			for(int a=0;a<state->n;a++){
 				gsl_vector_set(gamma, a, mod((int)gsl_vector_get(gamma, a), 2));
 			}
@@ -1043,7 +1046,7 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 			//ignore a != b for some reason, MATLAB code does it too
 			//still satisfies J[a,a] = 2 D[a] mod 8
 			gsl_matrix *etaMatrix, *tempMatrix;
-			etaMatrix = gsl_matrix_alloc(1, state->k);
+			etaMatrix = gsl_matrix_alloc(1, state->n);
 			tempMatrix = gsl_matrix_alloc(state->n, state->n);
 			gsl_matrix_set_row(etaMatrix, 0, eta);
 			gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1., etaMatrix, etaMatrix, 0., tempMatrix);
@@ -1062,25 +1065,19 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	
 	//remaining case: xiPrime != xi
 	extend(state, xi);
+	
+	//update D
 	gsl_vector_memcpy(tempVector, xi);
 	gsl_vector_add(tempVector, state->h);
 	gsl_blas_ddot(zeta, tempVector, &tempInt);
 	int newDval = mod(2*m + 4*mod((int)tempInt, 2), 8);
+	gsl_vector_set(state->D, state->k-1, newDval);
 	
-	//must be a better way to extend a vector/matrix in GSL
-	
-	//TODO: not sure if that's correct
-	gsl_vector *newD;
-	newD = gsl_vector_alloc(state->k);
-	for(int i=0;i<state->k-1;i++){
-		gsl_vector_set(newD, i, gsl_vector_get(state->D, i));
-	}
-	gsl_vector_set(newD, state->k-1, newDval);
-	state->D = newD;
-	
-	//TODO
-	//self.J = np.bmat([[self.J, np.array([4*vecZeta]).T],
-	//					[np.array([4*vecZeta]), [[(4*m) % 8]]]])
+	//update J 
+	gsl_vector_scale(vecZeta, 4);
+	gsl_matrix_set_col(state->J, state->k-1, vecZeta);
+	gsl_matrix_set_row(state->J, state->k-1, vecZeta);
+	gsl_matrix_set(state->J, state->k-1, state->k-1, mod(4*m, 8));
 
 	return pow(2, -0.5);
 }
@@ -2195,13 +2192,13 @@ void testFileMeasurePauli(){
 		int isGbarWorking = isMatrixWorking(state.Gbar, outGbar, state.k);
 		int isJWorking = isMatrixWorking(state.J, outJ, state.k);
 		
-		//printf("%d %d %d %d %d %d %d %d ", isStatusWorking, iskWorking, isQWorking, ishWorking, isDWorking, isGWorking, isGbarWorking, isJWorking);
 		
 		totalTests++;
 		if(isResultWorking*iskWorking*isQWorking*ishWorking*isDWorking*isGWorking*isGbarWorking*isJWorking > 0){
 			successTests++;
 		}
 		else{
+			printf("%d %d %d %d %d %d %d %d ", isResultWorking, iskWorking, isQWorking, ishWorking, isDWorking, isGWorking, isGbarWorking, isJWorking);
 			printf("Test number %d failed.\n", totalTests);
 		}
 	}
