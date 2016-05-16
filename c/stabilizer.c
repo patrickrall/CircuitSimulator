@@ -102,7 +102,7 @@ void updateQD(struct StabilizerStates *state, gsl_vector *y){
 	//temporary variables for storing intermediary results
 	double tempInt;
 	gsl_vector *tempVector;
-	tempVector = gsl_vector_alloc(state->k);
+	tempVector = gsl_vector_alloc(state->n);
 	
 	//equation 51
 	//tempInt <- D dot y
@@ -246,7 +246,7 @@ void Wsigma(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_comple
 	int tempP = 0;
 	int tempM = state->Q + sigma*((int)gsl_vector_get(state->D, s));
 	for(int i=0;i<Mlength;i++){
-		partialGamma(eps, p, m, sigma*((int)gsl_matrix_get(state->J, *(M + i), s)));
+		partialGamma(eps, p, m, gsl_vector_get(state->D, *(M+i)) + sigma*((int)gsl_matrix_get(state->J, *(M + i), s)));
 		if(*eps == 0){
 			*p = 0;
 			*m = 0;
@@ -283,7 +283,7 @@ void Wsigma(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_comple
 //Depends only on Q, D, J. Manipulates integers p, m, eps
 //to avoid rounding error then evaluates to a real number.
 void exponentialSum(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_complex *ans, int exact){
-	
+
 	//define matrix R for later usage
 	gsl_matrix *R;
 	R = gsl_matrix_alloc(state->n, state->n);
@@ -472,6 +472,26 @@ void exponentialSum(struct StabilizerStates *state, int *eps, int *p, int *m, gs
 int shrink(struct StabilizerStates *state, gsl_vector *xi, int alpha, int lazy){
 	//xi is of length n
 	
+	/*
+	printf("\nn = %d", state->n);
+	printf("\nk = %d", state->k);
+	printf("\nQ = %d", state->Q);
+	printf("\nalpha = %d", alpha);
+	printf("\nh = ");
+	for(int i=0;i<state->n;i++){
+		printf("%.0f ", gsl_vector_get(state->h, i));
+	}
+	printf("\nD = ");
+	for(int i=0;i<state->n;i++){
+		printf("%.0f ", gsl_vector_get(state->D, i));
+	}
+	printf("\nxi = ");
+	for(int i=0;i<state->n;i++){
+		printf("%.0f ", gsl_vector_get(xi, i));
+	}
+	printf("\n");
+	*/
+	
 	int a;
 	double tempInt;
 	gsl_vector *tempVector, *tempVector1;
@@ -566,19 +586,25 @@ int shrink(struct StabilizerStates *state, gsl_vector *xi, int alpha, int lazy){
 	if(lazy != 1){
 		//update Q, D using equations 51, 52 on page 10
 		gsl_vector *y;
-		y = gsl_vector_calloc(state->k);
+		y = gsl_vector_calloc(state->n);
 		gsl_vector_set(y, state->k-1, beta);
 		updateQD(state, y);
 		
 		//remove last row and column from J
-		gsl_matrix_view newJ = gsl_matrix_submatrix(state->J, 0, 0, state->k-1, state->k-1);
+		//gsl_matrix_view newJ = gsl_matrix_submatrix(state->J, 0, 0, state->k-1, state->k-1);
 		//gsl_matrix_free(state->J);
-		state->J = &newJ.matrix;
+		//state->J = &newJ.matrix;
+		for(int i=state->k-1;i<state->n;i++){
+			for(int j=state->k-1;j<state->n;j++){
+				gsl_matrix_set(state->J, i, j, 0);
+			}
+			gsl_vector_set(state->D, i, 0);
+		}
 		
 		//remove last element from D
-		gsl_vector_view newD = gsl_vector_subvector(state->D, 0, state->k-1);
+		//gsl_vector_view newD = gsl_vector_subvector(state->D, 0, state->k-1);
 		//gsl_vector_free(state->D);
-		state->D = &newD.vector;
+		//state->D = &newD.vector;)
 	}
 	
 	state->k--;
@@ -599,13 +625,18 @@ void innerProduct(struct StabilizerStates *state1, struct StabilizerStates *stat
 	tempVector1 = gsl_vector_alloc(state2->n);
 	
 	//K <- K_1, (also copy q_1)
-	struct StabilizerStates *state;
+	struct StabilizerStates *state = (struct StabilizerStates *)malloc(sizeof(struct StabilizerStates));
+	state->h = gsl_vector_alloc(state1->n);
+	state->D = gsl_vector_alloc(state1->n);
+	state->G = gsl_matrix_alloc(state1->n, state1->n);
+	state->Gbar = gsl_matrix_alloc(state1->n, state1->n);
+	state->J = gsl_matrix_alloc(state1->n, state1->n);
 	deepCopyState(state, state1);
 	for(b=state2->k;b<state2->n;b++){
 		gsl_matrix_get_row(tempVector, state2->Gbar, b);
 		gsl_blas_ddot(state2->h, tempVector, &tempInt);
 		alpha = mod((int)tempInt, 2);
-		*eps = shrink(state2, tempVector, alpha, 0);
+		*eps = shrink(state, tempVector, alpha, 0);
 		if(*eps == 0){
 			*eps = 0;
 			*p = 0;
@@ -616,36 +647,42 @@ void innerProduct(struct StabilizerStates *state1, struct StabilizerStates *stat
 	
 	//Now K = K_1 \cap K_2
 	gsl_vector *y;
-	y = gsl_vector_alloc(state2->k);
+	y = gsl_vector_alloc(state2->n);
 	gsl_vector_memcpy(tempVector, state->h);
 	gsl_vector_add(tempVector, state2->h);
-	for(i=0;i<state2->k;i++){
+	for(i=0;i<state2->n;i++){
 		gsl_matrix_get_row(tempVector1, state2->Gbar, i);
 		gsl_blas_ddot(tempVector, tempVector1, &tempInt);
 		gsl_vector_set(y, i, mod((int)tempInt, 2));
 	}
 	
-	gsl_matrix *smallR, *R;
+	gsl_matrix *smallR, *R, *Rtemp;
 	smallR = gsl_matrix_calloc(state->k, state2->k);
 	gsl_vector *smallRrow;
 	smallRrow = gsl_vector_alloc(state2->k);
-	R = gsl_matrix_alloc(state->k+1, state2->k);
+	Rtemp = gsl_matrix_alloc(state->k+1, state2->k);
 	gsl_matrix_view Gk = gsl_matrix_submatrix(state->G, 0, 0, state->k, state->n);
 	gsl_matrix_view Gk2 = gsl_matrix_submatrix(state2->Gbar, 0, 0, state2->k, state2->n);
 	gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1, &Gk.matrix, &Gk2.matrix, 0, smallR);
 	for(i=0;i<state->k;i++){
 		gsl_matrix_get_row(smallRrow, smallR, i);
-		gsl_matrix_set_row(R, i, smallRrow);
+		gsl_matrix_set_row(Rtemp, i, smallRrow);
 	}
 	//TODO: more efficient modulo of a matrix..
-	for(i=0;i<state->k;i++){
+	R = gsl_matrix_alloc(state->n, state->n);
+	gsl_matrix_set_zero(R);	//maybe identity?
+	for(i=0;i<state->k+1;i++){
 		for(j=0;j<state2->k;j++){
-			gsl_matrix_set(R, i, j, mod((int)gsl_matrix_get(R, i, j), 2));
+			gsl_matrix_set(R, i, j, mod((int)gsl_matrix_get(Rtemp, i, j), 2));
 		}
 	}
 	
-	
-	struct StabilizerStates *state2temp;
+	struct StabilizerStates *state2temp = (struct StabilizerStates *)malloc(sizeof(struct StabilizerStates));
+	state2temp->h = gsl_vector_alloc(state2->n);
+	state2temp->D = gsl_vector_alloc(state2->n);
+	state2temp->G = gsl_matrix_alloc(state2->n, state2->n);
+	state2temp->Gbar = gsl_matrix_alloc(state2->n, state2->n);
+	state2temp->J = gsl_matrix_alloc(state2->n, state2->n);
 	deepCopyState(state2temp, state2);
 	
 	updateQD(state2temp, y);
@@ -896,9 +933,12 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	
 	//write zeta, xi in basis of K
 	gsl_vector *vecZeta, *vecXi, *xiPrime, *tempVector;
-	vecZeta = gsl_vector_alloc(state->k);
-	vecXi = gsl_vector_alloc(state->k);
-	xiPrime = gsl_vector_alloc(state->k);
+	vecZeta = gsl_vector_alloc(state->n);
+	gsl_vector_set_zero(vecZeta);
+	vecXi = gsl_vector_alloc(state->n);
+	gsl_vector_set_zero(vecXi);
+	xiPrime = gsl_vector_alloc(state->n);
+	gsl_vector_set_zero(xiPrime);
 	tempVector = gsl_vector_alloc(state->n);
 	double tempInt;
 	
@@ -911,13 +951,12 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 		gsl_blas_ddot(tempVector, xi, &tempInt);
 		gsl_vector_set(vecXi, a, mod((int)tempInt, 2));
 	}
-	
 	for(int a=0;a<state->k;a++){
 		gsl_matrix_get_row(tempVector, state->G, a);
 		gsl_vector_scale(tempVector, gsl_vector_get(vecXi,a));
 		gsl_vector_add(xiPrime, tempVector);
 	}
-	for(int a=0;a<state->k;a++){
+	for(int a=0;a<state->n;a++){
 		gsl_vector_set(xiPrime, a, mod((int)gsl_vector_get(xiPrime, a), 2));
 	}
 	
@@ -937,7 +976,7 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	
 	//Compute eta_0, ..., eta_{k-1} using eq. 94
 	gsl_vector *eta;
-	eta = gsl_vector_alloc(state->k);
+	eta = gsl_vector_alloc(state->n);
 	gsl_vector_memcpy(eta, vecZeta);
 	for(int a=0;a<state->k;a++){
 		for(int b=0;b<state->k;b++){
@@ -949,7 +988,7 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	}
 	
 	int areXiXiprimeClose = 1;
-	for(int a=0;a<state->k;a++){
+	for(int a=0;a<state->n;a++){
 		if(fabs(gsl_vector_get(xi, a) - gsl_vector_get(xiPrime, a)) > 0.00001){
 			areXiXiprimeClose = 0;
 			break;
@@ -959,8 +998,11 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 		if(w==0 || w==4){
 			gsl_vector *gamma;
 			gamma = gsl_vector_alloc(state->n);
-			gsl_matrix_view Gbark = gsl_matrix_submatrix(state->Gbar, 0, 0, state->k, state->n);
-			gsl_blas_dgemv(CblasNoTrans, 1., &Gbark.matrix, eta, 0., gamma);
+			//gsl_matrix_view Gbark = gsl_matrix_submatrix(state->Gbar, 0, 0, state->k, state->n);
+			//gsl_blas_dgemv(CblasNoTrans, 1., &Gbark.matrix, eta, 0., gamma);
+			//gsl_vector_view etak = gsl_vector_subvector(eta, 0, state->k);
+			
+			gsl_blas_dgemv(CblasTrans, 1., state->Gbar, eta, 0., gamma);
 			for(int a=0;a<state->n;a++){
 				gsl_vector_set(gamma, a, mod((int)gsl_vector_get(gamma, a), 2));
 			}
@@ -993,7 +1035,7 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 			//ignore a != b for some reason, MATLAB code does it too
 			//still satisfies J[a,a] = 2 D[a] mod 8
 			gsl_matrix *etaMatrix, *tempMatrix;
-			etaMatrix = gsl_matrix_alloc(1, state->k);
+			etaMatrix = gsl_matrix_alloc(1, state->n);
 			tempMatrix = gsl_matrix_alloc(state->n, state->n);
 			gsl_matrix_set_row(etaMatrix, 0, eta);
 			gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1., etaMatrix, etaMatrix, 0., tempMatrix);
@@ -1012,25 +1054,21 @@ double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl
 	
 	//remaining case: xiPrime != xi
 	extend(state, xi);
+	
+	//update D
 	gsl_vector_memcpy(tempVector, xi);
 	gsl_vector_add(tempVector, state->h);
 	gsl_blas_ddot(zeta, tempVector, &tempInt);
 	int newDval = mod(2*m + 4*mod((int)tempInt, 2), 8);
+	gsl_vector_set(state->D, state->k-1, newDval);
 	
-	//must be a better way to extend a vector/matrix in GSL
-	
-	//TODO: not sure if that's correct
-	gsl_vector *newD;
-	newD = gsl_vector_alloc(state->k);
-	for(int i=0;i<state->k-1;i++){
-		gsl_vector_set(newD, i, gsl_vector_get(state->D, i));
-	}
-	gsl_vector_set(newD, state->k-1, newDval);
-	state->D = newD;
-	
-	//TODO
-	//self.J = np.bmat([[self.J, np.array([4*vecZeta]).T],
-	//					[np.array([4*vecZeta]), [[(4*m) % 8]]]])
+	//update J 
+	gsl_vector_scale(vecZeta, 4);
+	gsl_matrix_set_col(state->J, state->k-1, vecZeta);
+	gsl_matrix_set_row(state->J, state->k-1, vecZeta);
+	gsl_matrix_set(state->J, state->k-1, state->k-1, mod(4*m, 8));
 
 	return pow(2, -0.5);
 }
+
+
