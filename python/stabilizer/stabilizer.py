@@ -49,7 +49,6 @@ class StabilizerState:
 
             for zi in range(2**self.k):
                 z = np.array(list(np.binary_repr(zi, width=self.k))).astype(int)[::-1]
-                # import pdb; pdb.set_trace()
                 phase = omega**(self.Q + np.dot(self.D, z) + 2*np.dot(np.dot(z, J), z))
 
                 x = ((np.dot(z, self.G[:self.k, :]) % 2) + self.h) % 2
@@ -185,7 +184,8 @@ class StabilizerState:
             W = (1, 0, self.Q + sigma*self.D[s])
             for c in M:
                 (eps, p, m) = self.partialGamma(self.D[c] + sigma*self.J[c, s])
-                if eps == 0: return zero()
+                if eps == 0:
+                    return zero()
                 W = (1, W[1] + p, (W[2] + m) % 8)
             for dim in Dimers:
                 (eps, p, m) = self.Gamma(self.D[dim[0]] + sigma*self.J[dim[0], s],
@@ -292,6 +292,7 @@ class StabilizerState:
 
     @classmethod
     def innerProduct(cls, state1, state2, exact=False):
+
         if not (state1.n == state2.n):
             raise ValueError("States do not have same dimension.")
 

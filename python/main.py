@@ -56,8 +56,9 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
 
     # --------------------- Prepare Projectors ------------------
 
-    # compile
+    # compile, update n to include ancillas
     circ = circuit.compile.compileRawCircuit(infile, reference)
+    n = len(circuit.compile.standardGate(circ.splitlines()[0], lineMode=True))
 
     # postselect measurement results
     Ts, Ms, MTs = circuit.gadgetize.countY(circ)
@@ -67,7 +68,8 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
     #               which a T gate is performed
 
     # postselect measured qubits
-    Mselect = np.random.randint(2, size=len(Ms))
+    # Mselect = np.random.randint(2, size=len(Ms))
+    Mselect = np.zeros(len(Ms))
 
     # increment Ts by those depending on measurement results
     for M in MTs:
@@ -83,6 +85,7 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
 
     # postselect measurement results on Ts
     # y = np.random.randint(2, size=Ts)
+    # y = np.ones(Ts).astype(int)
     y = np.zeros(Ts).astype(int)
 
     print("Measurements: %d" % len(Ms))
@@ -174,7 +177,6 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
 
     print("Gprime:")
     printProjector(Gprime)
-    print(Gprime)
     print("Hprime:")
     printProjector(Hprime)
     print("u: %d" % u)
@@ -248,8 +250,8 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
                     if (res == 0):  # don't need to consider more
                         break
 
-                if (len(factors) == 3 and factors[2] != 1):
-                    print(factors)
+                # if (len(factors) == 3 and factors[2] != 1):
+                #     print(factors)
 
                 subtotal = 0  # <\theta_i| \Pi (\sum^\chi_a |\phi_a>)
 
@@ -261,7 +263,6 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
                             bitstring += decomposed[idx]
                     bitstring = bitstring.astype(int) % 2
                     k = sum(bitstring)
-                    # print("nya1", bitstring)
 
                     # initialize stabilizer state
                     phi = StabilizerState(Ts, k)
@@ -293,8 +294,11 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
                             phi.G[i] = np.random.random_integers(0, 1, (Ts))
 
                     phi.Gbar = np.linalg.inv(phi.G).T % 2
-                    if 0.5 in phi.Gbar:
-                        print(phi.Gbar)
+
+                    if not np.allclose(np.dot(phi.G, phi.Gbar.T) % 2, np.eye(Ts)):
+                        print(phi.G)
+                        print(phi.Gbar.T)
+                        import pdb; pdb.set_trace()
                         raise ValueError("bad inverse")
 
                     # add <\theta_i| \Pi |\phi_a>
@@ -336,7 +340,7 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
             # maybe (2**Ts / L) isn't necessary?
             # unless one of the projectors is empty...
             result = (2**Ts / L)*total
-            result = total  # norm necessary?
+            # result = total  # norm necessary?
 
         if isG:
             numerator = result

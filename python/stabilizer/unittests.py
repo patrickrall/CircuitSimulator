@@ -47,7 +47,6 @@ f = open(directory + "ExponentialSum.txt")
 tests = json.loads(f.read())
 tests = []
 
-# indexcut = 267
 indexcut = 0
 failed = 0
 index = 0
@@ -135,7 +134,7 @@ tests = json.loads(f.read())
 tests = tests[:100]
 tests = []
 
-indexcut = 2
+indexcut = 164
 failed = 0
 index = 0
 for test in tests:

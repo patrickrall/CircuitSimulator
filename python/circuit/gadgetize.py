@@ -170,12 +170,23 @@ def expandGenerators(proj):
 
     n = len(xs[0])
 
+    def ph(xs1, zs1, xs2, zs2):
+        out = 0
+        for i in range(n):
+            tup = (xs1[i], zs1[i], xs2[i], zs2[i])
+            if tup == (0, 1, 1, 0): out += 2  # Z*X
+            if tup == (0, 1, 1, 1): out += 2  # Z*XZ
+            if tup == (1, 1, 1, 0): out += 2  # XZ*X
+            if tup == (1, 1, 1, 1): out += 2  # XZ*XZ
+        return out
+
     for i in range(1, 2**k):  # omit identity
         bitstring = list(np.binary_repr(i, width=k))
         prod = (0, np.zeros(n), np.zeros(n))
         for j in range(k):
             if bitstring[j] == '1':
-                prod = (prod[0] + phases[j], prod[1] + xs[j], prod[2] + zs[j])
+                phplus = ph(prod[1], prod[2], xs[j], zs[j])
+                prod = (prod[0] + phases[j] + phplus, prod[1] + xs[j], prod[2] + zs[j])
 
         newPhases.append(prod[0] % 4)
         newXs.append(prod[1] % 2)
@@ -211,9 +222,6 @@ def main():
 
     # postselect ts
     y = np.random.randint(2, size=Ts)
-
-    print("Measurements: %d" % len(Ms))
-    print("Ts: %d" % Ts)
 
     measure = {0: 1, 1: 1}
 
