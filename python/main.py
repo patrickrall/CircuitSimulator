@@ -110,8 +110,8 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
     H = circuit.gadgetize.gadgetize(circ, {}, Mdict, y)
 
     # convert list of generators to list of all projectors
-    G = circuit.gadgetize.expandGenerators(G)
-    H = circuit.gadgetize.expandGenerators(H)
+    # G = circuit.gadgetize.expandGenerators(G)
+    # H = circuit.gadgetize.expandGenerators(H)
 
     print("G:")
     printProjector(G)
@@ -127,43 +127,61 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
         primeXs = []
         primeZs = []
 
-        cut = 0
-        for g in range(len(phases)):
-            if sum(xs[g][:n]) > 0:
-                cut += 1
-            else:
-                # ensure no duplicates
-                found = False
-                for h in range(len(primePhases)):
-                    if primePhases[h] == phases[g] and\
-                            np.allclose(primeXs[h], xs[g][n:]) and\
-                            np.allclose(primeZs[h], zs[g][n:]):
-                                found = True
-                                print("cutexisting")
-                                break
+        def nullSpace(A):
+            l = len(A)
+            X = np.eye(l)
 
-                # remove identity
-                if phases[g] == 0 and\
-                        np.allclose(xs[g][n:], np.zeros(Ts)) and\
-                        np.allclose(zs[g][n:], np.zeros(Ts)):
-                    found = True
-                    print("cutidentity")
+            # modify X for each qubit
+            for i in range(len(A[0])):
+                # compute rows of X with 1's for that qubit
+                y = np.dot(X, A[:, i])
 
-                if found:
-                    pass
-                    # cut += 1
-                else:
-                    primePhases.append(phases[g])
-                    primeXs.append(xs[g][n:])
-                    primeZs.append(zs[g][n:])
+                good = []  # rows with 0's
+                bad = []   # rows with 1's
 
-        cutdim = np.log2(len(phases)+1-cut)
-        if (np.round(cutdim) != cutdim):
-            print("Previous size: %d, cut away %d" % (len(phases)+1, cut))
-            printProjector((primePhases, primeXs, primeZs))
-            raise ValueError("Truncated projector size not a power of two!")
-        du = np.log2(len(phases)+1) - cutdim
-        print("was %d, remove %d, du %d" % (len(phases)+1, cut, du))
+                for i in range(len(y)):
+                    if (y[i] == 0): good.append(X[i])
+                    else: bad.append(X[i])
+
+                # add bad rows to each other to cancel out 1's in y
+                bad = (bad + np.roll(bad, 1, axis=0)) % 2
+                bad = bad[1:]
+
+                # ensure arrays are properly shaped, even if empty
+                good = np.array(good).reshape((len(good), l))
+                bad = np.array(bad).reshape((len(bad), l))
+
+                X = np.concatenate((good, bad), axis=0)
+            return X
+
+        def mulStabilizers(stab1, stab2):
+            (ph1, xs1, zs1) = stab1
+            (ph2, xs2, zs2) = stab2
+
+            ph = 0
+            for i in range(len(xs1)):
+                tup = (xs1[i], zs1[i], xs2[i], zs2[i])
+                if tup == (0, 1, 1, 0): ph += 2  # Z*X
+                if tup == (0, 1, 1, 1): ph += 2  # Z*XZ
+                if tup == (1, 1, 1, 0): ph += 2  # XZ*X
+                if tup == (1, 1, 1, 1): ph += 2  # XZ*XZ
+
+            return ((ph1 + ph2 + ph) % 4, (xs1 + xs2) % 2, (zs1 + zs2) % 2)
+
+        A = np.array(xs)[:, :n]
+        X = nullSpace(A)
+
+        for row in X:
+            gen = (0, np.zeros(n+Ts), np.zeros(n+Ts))
+            for i in range(len(row)):
+                if row[i] == 1: gen = mulStabilizers(gen, (phases[i], xs[i], zs[i]))
+            (ph, x, z) = gen
+            primePhases.append(ph)
+            primeXs.append(x[-Ts:])
+            primeZs.append(z[-Ts:])
+
+        du = len(phases) - len(X)
+        print("du: ", du)
         if isG:
             u -= du
             Gprime = (primePhases, primeXs, primeZs)
@@ -215,7 +233,7 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
             # || \Pi |H^{\otimes t}> ||^2 ~= (2^t / L) \sum^L_(i=1) || <\theta_i| \Pi |H^(\otimes t)> ||^2
             # = (2^t / L) \sum^L_(i=1) || (1/norm)  <\theta_i| \Pi (\sum^\chi_a |\phi_a>) ||^2
 
-            L = int(1000)
+            L = int(5000)
             # number of random stabilizer states = 1/(p_f \eps^2), such that with probability (1-p_f) the  result
             # \alpha satisfies ||\Pi |H^{\otimes t}> ||^2 (1-\eps) < \alpha < ||\Pi |H^{\otimes t}> ||^2 (1+\eps):
 
@@ -262,44 +280,55 @@ Expected %d, but input is %d long.""" % (n, len(argv[2])))
                         if Lbits[idx] == '1':
                             bitstring += decomposed[idx]
                     bitstring = bitstring.astype(int) % 2
-                    k = sum(bitstring)
 
                     # initialize stabilizer state
-                    phi = StabilizerState(Ts, k)
+                    phi = StabilizerState(Ts, Ts)
 
+                    # construct state by measuring paulis
+                    for xtildeidx in range(Ts):
+                        vec = np.zeros(Ts)
+                        vec[xtildeidx] = 1
+                        if bitstring[xtildeidx] == 1:
+                            # |+> at index, so measure X
+                            phi.measurePauli(0, np.zeros(Ts), vec)
+                        else:
+                            # |0> at index, so measure Z
+                            phi.measurePauli(0, vec, np.zeros(Ts))
+
+                    # old code: matrix inverse method
                     # insert basis of affine space into G
                     # space is supported whenever xtilde = 1
-                    rowidx = 0
-                    for xtildeidx in range(Ts):
-                        if bitstring[xtildeidx] == 1:
-                            phi.G[rowidx] = np.zeros(Ts)
-                            phi.G[rowidx][xtildeidx] = 1
-                            rowidx += 1
+                    # rowidx = 0
+                    # for xtildeidx in range(Ts):
+                    #     if bitstring[xtildeidx] == 1:
+                    #         phi.G[rowidx] = np.zeros(Ts)
+                    #         phi.G[rowidx][xtildeidx] = 1
+                    #         rowidx += 1
 
                     # make sure matrix has determinant 1, ensuring existence of inverse
-                    count = 0
-                    while np.abs(np.linalg.det(phi.G)) != 1:
-                        count += 1
-                        if count > 1e3:
-                            print("k: ", k)
-                            print("bitstring: ", bitstring)
-                            print("Lbits: ", Lbits)
+                    # count = 0
+                    # while np.abs(np.linalg.det(phi.G)) != 1:
+                    #     count += 1
+                    #     if count > 1e3:
+                    #         print("k: ", k)
+                    #         print("bitstring: ", bitstring)
+                    #         print("Lbits: ", Lbits)
 
-                            print(phi.G)
-                            import pdb; pdb.set_trace()
-                            raise ValueError("can't make non-singular")
+                    #         print(phi.G)
+                    #         import pdb; pdb.set_trace()
+                    #         raise ValueError("can't make non-singular")
 
                         # randomly sample remaining rows
-                        for i in range(k, Ts):
-                            phi.G[i] = np.random.random_integers(0, 1, (Ts))
+                    #     for i in range(k, Ts):
+                    #         phi.G[i] = np.random.random_integers(0, 1, (Ts))
 
-                    phi.Gbar = np.linalg.inv(phi.G).T % 2
+                    # phi.Gbar = np.linalg.inv(phi.G).T % 2
 
-                    if not np.allclose(np.dot(phi.G, phi.Gbar.T) % 2, np.eye(Ts)):
-                        print(phi.G)
-                        print(phi.Gbar.T)
-                        import pdb; pdb.set_trace()
-                        raise ValueError("bad inverse")
+                    # if not np.allclose(np.dot(phi.G, phi.Gbar.T) % 2, np.eye(Ts)):
+                    #     print(phi.G)
+                    #     print(phi.Gbar.T)
+                    #     import pdb; pdb.set_trace()
+                    #     raise ValueError("bad inverse")
 
                     # add <\theta_i| \Pi |\phi_a>
                     try:
