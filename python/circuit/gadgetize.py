@@ -61,9 +61,8 @@ def countY(circuit):
 
 # contract circuit into single projector
 # y: postselected T ancilla measurements
-# Mdict: postselected other measurements
-# Xdict: output string
-def gadgetize(circuit, Xdict, Mdict, y):
+# Mdict: postselected output and other measurements
+def gadgetize(circuit, Mdict, y):
     n = len(standardGate(circuit.split('\n', 1)[0], lineMode=True))
     size = n + len(y)
 
@@ -81,9 +80,6 @@ def gadgetize(circuit, Xdict, Mdict, y):
         if val == 1: phase = 2
         phases.append(phase)
         return phases, xs, zs
-
-    # set output qubits
-    for X in Xdict.keys(): phases, xs, zs = gen(X, Xdict[X], phases, xs, zs)
 
     # set measured ancillas
     for M in Mdict.keys(): phases, xs, zs = gen(M, Mdict[M], phases, xs, zs)
@@ -195,9 +191,9 @@ def expandGenerators(proj):
     return (newPhases, newXs, newZs)
 
 
-def main():
+def testgadgetize():
     # read data
-    filename = "examples/compiled2.circ"
+    filename = "circuit/examples/compiled2.circ"
     f = open(filename, "r")
     circuit = removeComments(f.read())
     f.close()
@@ -215,7 +211,7 @@ def main():
             Ts += 1
 
     # pack measurements into dictionary
-    Mdict = {}
+    Mdict = {0: 1, 1: 1}
     for M in Ms:
         idx = Ms.index(M)
         Mdict[M] = Mselect[idx]
@@ -223,12 +219,6 @@ def main():
     # postselect ts
     y = np.random.randint(2, size=Ts)
 
-    measure = {0: 1, 1: 1}
-
     # obtain projectors
-    projector = gadgetize(circuit, measure, Mdict, y)
+    projector = gadgetize(circuit, Mdict, y)
     print(projector)
-
-
-if __name__ == "__main__":
-    main()

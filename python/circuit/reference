@@ -65,3 +65,8 @@ H
 Y: # Up to a phase
 X
 Z
+
+XX: # Swap gate
+CX
+XC
+CX

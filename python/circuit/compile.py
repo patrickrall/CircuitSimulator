@@ -275,11 +275,11 @@ def parseReference(data):
     return output  # done
 
 
-def main():
+def testcompile():
     # configuration
     reffilename = "reference"
-    infilename = "examples/raw1.circ"
-    outfilename = "examples/compiled1.circ"
+    infilename = "circuit/examples/raw1.circ"
+    outfilename = "circuit/examples/compiled1.circ"
 
     # read reference
     f = open(reffilename, "r")
@@ -299,6 +299,3 @@ def main():
     outfile = open(outfilename, "w")
     outfile.write(output)
     outfile.close()
-
-if __name__ == "__main__":
-    main()

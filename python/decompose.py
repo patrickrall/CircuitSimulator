@@ -7,6 +7,10 @@ import numpy as np
 
 
 def decompose(t, delta):
+    # trivial case
+    if t == 0:
+        return np.array([[]]), 1
+
     v = np.cos(np.pi/8)
 
     # find k such that  4 \geq 2^k v^(2t) delta \geq 2
@@ -42,13 +46,9 @@ def decompose(t, delta):
 
         innerProd = 2**k * v**(2*t) / Z_L
 
-    print("Found in %d steps, k=%d!" % (count, k))
-
     norm = np.sqrt(2**k * Z_L)
-    # norm = np.sqrt(2**k)
-    # norm = innerProd
 
-    return norm, L
+    return L, norm
 
 if __name__ == "__main__":
-    print(decompose(9, 0.0001))
+    print(decompose(0, 0.0001))

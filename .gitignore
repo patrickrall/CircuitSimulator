@@ -4,3 +4,5 @@ Examples
 Examples/*
 python/stabilizer/exampleFunctionCalls/Shrink.txt
 */__pycache__/*
+*/__pycache__
+*/*.pyc

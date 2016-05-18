@@ -1,0 +1,28 @@
+# Hadamard first register
+H_____
+_H____
+__H___
+
+# controlled T gate onto second register
+C__T__
+C___T_
+C____T
+
+_C_T__
+_C__T_
+_C___T
+
+__CT__
+__C_T_
+__C__T
+
+# inverse 3-qubit fourier transform
+X_X___
+__H___
+_SC___
+_H____
+TC____
+SC____
+H_____
+
+# measure last three bits

@@ -1,32 +1,180 @@
 #
 # file: main.py
-# Putting it all together: given an input circuit, sample a set
-# of output qubits
+# Interface for the python implementation. Also implements sampling
+# algorithm.
 #
 
 import numpy as np
 import sys
 import re
+from datetime import datetime
 import circuit.compile
 import circuit.gadgetize
-from stabilizer.stabilizer import StabilizerState
+import projectors
 from decompose import decompose
-# from multiprocessing.pool import ThreadPool
+from multiprocessing import Pool
+
+
+# calculate probability circuit yielding a measurement
+def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, parallel=True):
+    # get projectors
+    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, zeros=False)
+
+    # truncate projectors
+    Gprime, u = projectors.truncate(n, G)
+    Hprime, v = projectors.truncate(n, H)
+
+    # print projector data
+    if verbose:
+        print("Gadgetize circuit:")
+        print("G:")
+        printProjector(G)
+        print("H:")
+        printProjector(H)
+
+        print("Truncate projectors to magic state space:")
+        print("Gprime: (truncated by %d)" % u)
+        printProjector(Gprime)
+        print("Hprime: (trunacted by %d)" % v)
+        printProjector(Hprime)
+
+    # calculate |L> ~= |H>
+    L, Lnorm = decompose(t, Lbound)
+
+    if verbose:
+        print("Stabilizer rank of |L>: 2^%d" % len(L))
+
+    # parallelization over samples, or over elements of |L>?
+    # Can't do both because of yucky "child thread of child thread" handling
+    Lparallel = 2**len(L) > Nsamples
+
+    # helper for preventing needless sampling trivial projectors or circuits
+    def calcProjector(P, Lparallel, pool=False):
+        if len(P[0]) == 0 or len(P[1][0]) == 0:
+            # empty projector or Clifford circuit. No sampling needed.
+            return projectors.sampleTMeasure((Gprime, L, Lnorm, 0, False))
+
+        queries = [(P, L, Lnorm, seed, Lparallel) for seed in range(0, Nsamples)]
+        if pool is not False: return sum(pool.map(projectors.sampleTMeasure, queries))
+        return sum(map(projectors.sampleTMeasure, queries))
+
+    # calculate || Gprime |L> ||^2 and || Hprime |L> ||^2 up to a constant
+    if parallel and not Lparallel:
+        if verbose: print("Parallelizing over %d samples" % Nsamples)
+
+        # set up thread pool
+        pool = Pool()
+
+        numerator = calcProjector(Gprime, False, pool=pool)
+        denominator = calcProjector(Hprime, False, pool=pool)
+
+        pool.close()
+        pool.join()
+
+    else:
+        if verbose and Lparallel: print("Parallelizing over %d stabilizers in |L>: 2^%d" % 2**len(L))
+
+        numerator = calcProjector(Gprime, Lparallel)
+        denominator = calcProjector(Hprime, Lparallel)
+
+    if verbose:
+        print("|| Gprime |H^t> ||^2:", numerator/Nsamples)
+        print("|| Hprime |H^t> ||^2:", denominator/Nsamples)
+
+    return 2**(v-u) * (numerator/denominator)
+
+
+# sample from a set of qubits
+def sampleQubits(circ, measure, sample, Nsamples=5000, Lbound=0.0001, verbose=False, parallel=True):
+
+    def prob(measure):  # shortcut
+        return probability(circ, measure, Nsamples=Nsamples, Lbound=Lbound, parallel=parallel, verbose=verbose)
+
+    # recursive implementation: need the probability of sampling a smaller
+    # set of qubits in order to sample next one
+    def recursiveSample(qubits, measure):
+        if len(qubits) == 1:  # base case
+            # is a sample even possible? Some qubit constraints are unsatisfiable.
+            if len(measure.keys()) != 0:  # other measurements present
+                P = prob(measure)
+                if verbose: print("Constraints present. Probability of satifying: %f\n" % P)
+                if P == 0: return "", {}, 0  # not satisfiable
+                if P < 1e-5:
+                    print("Warning: probability of satisfying qubit constraints very low (%f). Could be impossible." % P)
+
+            # compute probability
+            measure[qubits[0]] = 0
+            P0 = prob(measure)
+
+            if verbose: print("Measuring qubit %d: P(0) = %f" % (qubits[0], P0))
+
+            # sample
+            qubit = 0 if np.random.random() < P0 else 1
+            if verbose: print("-> Sampled", qubit, "\n")
+
+            measure[qubits[0]] = qubit
+
+            # return sample and probability of sample occurring
+            return str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
+        else:
+            qubitssofar, measure, Psofar = recursiveSample(qubits[:-1], measure)
+
+            if qubitssofar == "": return "", {}, 0  # not satisfiable
+
+            # compute conditional probability
+            measure[qubits[-1]] = 0
+            P = prob(measure)
+            P0 = P/Psofar
+            if verbose:
+                print("Probability with qubit %d: %f" % (qubits[-1], P))
+                print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
+
+            # sample
+            qubit = 0 if np.random.random() < P0 else 1
+            if verbose:
+                print("-> Sampled", qubit)
+                print("-> Sample so far:", qubitssofar + str(qubit), "\n")
+
+            measure[qubits[-1]] = qubit
+
+            return qubitssofar + str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
+
+    output, _, _ = recursiveSample(sample, measure)
+    return output
 
 
 def main(argv):
-    # --------------------- Parse arguments -----------------------
     if len(argv) < 2:
         return usage("Wrong number of arguments.")
 
     if argv[1] == "-h":
         return help()
 
-    if len(argv) < 3 or len(argv) > 4:
+    if len(argv) < 3 or len(argv) > 8:
         return usage("Wrong number of arguments.")
 
-    if not re.match("^(M|_)*$", argv[2]):
-        return usage("Measurement string must consists only of 'M' or '_'.")
+    config = {
+        "verbose": False,
+        "reference": "circuit/reference",
+        "samples": int(1e5),
+        "Lbound": 1e-5,
+        "parallel": True,
+    }
+
+    # parse optional arguments
+    for i in range(3, len(argv)):
+
+        if argv[i] == "-v": config["verbose"] = True
+        if argv[i] == "-np": config["parallel"] = False
+
+        if argv[i][:10] == "reference=": config["reference"] = argv[i][10:]
+
+        if argv[i][:8] == "samples=": config["samples"] = int(float(argv[i][8:]))
+
+        if argv[i][:7] == "Lbound=": config["Lbound"] = float(argv[i][7:])
+
+    if not re.match("^(1|0|M|_)*$", argv[2]):
+        return usage("Measurement string must consists only of '1', '0', 'M' or '_'.")
 
     # load input circuit
     f = open(argv[1], "r")
@@ -37,357 +185,53 @@ def main(argv):
 
     # measurement string correct length
     if (len(argv[2]) != n):
-        return usage("""Measurement not the right length:
-Expected %d, but input is %d long.""" % (n, len(argv[2])))
+        return usage("Measurement not the right length:\n" +
+                     "Expected %d, but input is %d long." % (n, len(argv[2])))
 
-    # TODO: support for larger measurements
-    w = len(argv[2].replace("_", ""))
-    # if w > 1: return usage("No support for measurements of multiple qubits.")
-
-    if w == 0: return usage("Must measure at least one bit.")
+    # measurement string can't be all "_"'s
+    if argv[2] == "_"*n: return usage("Must measure at least one bit.")
 
     # load reference
-    referencePath = "circuit/reference"
-    if len(argv) > 3: referencePath = argv[2]
-
-    f = open(referencePath)
+    f = open(config["reference"])
     reference = circuit.compile.parseReference(circuit.compile.removeComments(f.read()))
     f.close()
 
-    # --------------------- Prepare Projectors ------------------
-
-    # compile, update n to include ancillas
+    # compile circuit
     circ = circuit.compile.compileRawCircuit(infile, reference)
-    n = len(circuit.compile.standardGate(circ.splitlines()[0], lineMode=True))
 
-    # postselect measurement results
-    Ts, Ms, MTs = circuit.gadgetize.countY(circ)
-    # Ts - number of T gates
-    # Ms - qubits measured by circuit
-    # MTs - qubits measured by circuit, depending on
-    #               which a T gate is performed
-
-    # postselect measured qubits
-    # Mselect = np.random.randint(2, size=len(Ms))
-    Mselect = np.zeros(len(Ms))
-
-    # increment Ts by those depending on measurement results
-    for M in MTs:
-        idx = Ms.index(M)
-        if Mselect[idx] == 1:
-            Ts += 1
-
-    # pack measurements into dictionary
-    Mdict = {}
-    for M in Ms:
-        idx = Ms.index(M)
-        Mdict[M] = Mselect[idx]
-
-    # postselect measurement results on Ts
-    # y = np.random.randint(2, size=Ts)
-    # y = np.ones(Ts).astype(int)
-    y = np.zeros(Ts).astype(int)
-
-    print("Measurements: %d" % len(Ms))
-    print("Ts: %d" % Ts)
-
-    # assemble measurement pauli
-    # TODO: support larger measurements
+    # get measurements
     measure = {}
-    # measure[argv[2].index("M")] = 0
+    sample = []
     for i in range(len(argv[2])):
-        if list(argv[2])[i] == 'M':
+        if list(argv[2])[i] == '0':
             measure[i] = 0
+        if list(argv[2])[i] == '1':
+            measure[i] = 1
+        if list(argv[2])[i] == 'M':
+            sample.append(i)
 
-    print("y: %s" % "".join(list(y.astype(str))))
+    # start timer
+    if config["verbose"]: starttime = datetime.now()
 
-    # obtain projectors
-    # TODO: opportunity for efficiency improvement: H is a subset
-    # of G's generators, namely those from the T projectors.
-    # could calculate G = H + gadgetize(circ, measure, no t's)
-    # In fact, this could be extended to entire calculation.
-    G = circuit.gadgetize.gadgetize(circ, measure, Mdict, y)
-    H = circuit.gadgetize.gadgetize(circ, {}, Mdict, y)
+    if len(sample) == 0:  # algorithm 1: compute probability
+        if config["verbose"]: print("Probability mode: calculate probability of measurement outcome")
 
-    # convert list of generators to list of all projectors
-    # G = circuit.gadgetize.expandGenerators(G)
-    # H = circuit.gadgetize.expandGenerators(H)
+        P = probability(circ, measure, Nsamples=config["samples"], Lbound=config["Lbound"],
+                        parallel=config["parallel"], verbose=config["verbose"])
+        print("Probability:", P)
 
-    print("G:")
-    printProjector(G)
-    print("H:")
-    printProjector(H)
+    else:  # algorithm 2: sample bits
+        if config["verbose"]: print("Sample mode: sample marked bits")
 
-    # truncate projectors to magic state part
-    u = 0  # append normfactor 2**(-u)
-    isG = True
-    for proj in [G, H]:
-        (phases, xs, zs) = proj
-        primePhases = []
-        primeXs = []
-        primeZs = []
-
-        def nullSpace(A):
-            l = len(A)
-            X = np.eye(l)
-
-            # modify X for each qubit
-            for i in range(len(A[0])):
-                # compute rows of X with 1's for that qubit
-                y = np.dot(X, A[:, i])
-
-                good = []  # rows with 0's
-                bad = []   # rows with 1's
-
-                for i in range(len(y)):
-                    if (y[i] == 0): good.append(X[i])
-                    else: bad.append(X[i])
-
-                # add bad rows to each other to cancel out 1's in y
-                bad = (bad + np.roll(bad, 1, axis=0)) % 2
-                bad = bad[1:]
-
-                # ensure arrays are properly shaped, even if empty
-                good = np.array(good).reshape((len(good), l))
-                bad = np.array(bad).reshape((len(bad), l))
-
-                X = np.concatenate((good, bad), axis=0)
-            return X
-
-        def mulStabilizers(stab1, stab2):
-            (ph1, xs1, zs1) = stab1
-            (ph2, xs2, zs2) = stab2
-
-            ph = 0
-            for i in range(len(xs1)):
-                tup = (xs1[i], zs1[i], xs2[i], zs2[i])
-                if tup == (0, 1, 1, 0): ph += 2  # Z*X
-                if tup == (0, 1, 1, 1): ph += 2  # Z*XZ
-                if tup == (1, 1, 1, 0): ph += 2  # XZ*X
-                if tup == (1, 1, 1, 1): ph += 2  # XZ*XZ
-
-            return ((ph1 + ph2 + ph) % 4, (xs1 + xs2) % 2, (zs1 + zs2) % 2)
-
-        A = np.array(xs)[:, :n]
-        X = nullSpace(A)
-
-        for row in X:
-            gen = (0, np.zeros(n+Ts), np.zeros(n+Ts))
-            for i in range(len(row)):
-                if row[i] == 1: gen = mulStabilizers(gen, (phases[i], xs[i], zs[i]))
-            (ph, x, z) = gen
-            primePhases.append(ph)
-            primeXs.append(x[-Ts:])
-            primeZs.append(z[-Ts:])
-
-        du = len(phases) - len(X)
-        print("du: ", du)
-        if isG:
-            u -= du
-            Gprime = (primePhases, primeXs, primeZs)
+        X = sampleQubits(circ, measure, sample, Nsamples=config["samples"], Lbound=config["Lbound"],
+                         parallel=config["parallel"], verbose=config["verbose"])
+        if len(X) == 0:  # no sample possible
+            print("Error: circuit output state cannot produce a measurement with these constraints.")
         else:
-            u += du
-            Hprime = (primePhases, primeXs, primeZs)
+            print("Sample:", X)
 
-        isG = False
-
-    # --------------------- Evaluate Inner Products ---------------
-
-    print("Gprime:")
-    printProjector(Gprime)
-    print("Hprime:")
-    printProjector(Hprime)
-    print("u: %d" % u)
-
-    # TODO: if Gprime = Hprime result is 1
-
-    isG = True
-    decomposed = False
-    for proj in [Gprime, Hprime]:
-        (phases, xs, zs) = proj
-
-        # empty projector
-        if len(phases) == 0:
-            if isG:
-                numerator = 1
-            else:
-                denominator = 1
-            isG = False
-            continue
-
-        if Ts == 0:  # all cliffords circuit
-            lookup = {0: 1, 2: -1}
-            generators = [1]  # include identity
-            for phase in phases: generators.append(lookup[phase])
-
-            # calculate sum of all permutations of generators
-            result = sum(generators)/len(generators)
-
-        else:
-            # compute decomposition if not already done so
-            if (type(decomposed) == bool):
-                norm, decomposed = decompose(Ts, 0.0001)
-                print(decomposed, norm)
-
-            # Evaluate the following expression:
-            # || \Pi |H^{\otimes t}> ||^2 ~= (2^t / L) \sum^L_(i=1) || <\theta_i| \Pi |H^(\otimes t)> ||^2
-            # = (2^t / L) \sum^L_(i=1) || (1/norm)  <\theta_i| \Pi (\sum^\chi_a |\phi_a>) ||^2
-
-            L = int(5000)
-            # number of random stabilizer states = 1/(p_f \eps^2), such that with probability (1-p_f) the  result
-            # \alpha satisfies ||\Pi |H^{\otimes t}> ||^2 (1-\eps) < \alpha < ||\Pi |H^{\otimes t}> ||^2 (1+\eps):
-
-            np.random.seed(0)  # make random numbers the same every time
-            np.seterr(all='raise')  # make numpy crash on warnings
-
-            def sampleState():
-                theta = StabilizerState.randomStabilizerState(Ts)
-
-                projfactor = 1
-                # project theta down to \Pi |\theta>
-
-                def printState(x):
-                    outstring = "["
-                    for comp in x:
-                        outstring += " %0.3f+%0.3fi " % (comp.real, comp.imag)
-                    outstring += "]"
-                    print(outstring)
-
-                # print("\n\nTry:")
-                # printState(theta.unpack())
-                factors = []
-                for g in range(len(phases)):
-                    # print((phases[g], zs[g], xs[g]))
-                    res = theta.measurePauli(phases[g], zs[g], xs[g])
-                    # printState(theta.unpack())
-                    # print("Out: ", res)
-
-                    projfactor *= res
-                    factors.append(res)
-
-                    if (res == 0):  # don't need to consider more
-                        break
-
-                # if (len(factors) == 3 and factors[2] != 1):
-                #     print(factors)
-
-                subtotal = 0  # <\theta_i| \Pi (\sum^\chi_a |\phi_a>)
-
-                for i in range(0, 2**len(decomposed)):
-                    Lbits = list(np.binary_repr(i, width=len(decomposed)))
-                    bitstring = np.zeros(Ts)
-                    for idx in range(len(Lbits)):
-                        if Lbits[idx] == '1':
-                            bitstring += decomposed[idx]
-                    bitstring = bitstring.astype(int) % 2
-
-                    # initialize stabilizer state
-                    phi = StabilizerState(Ts, Ts)
-
-                    # construct state by measuring paulis
-                    for xtildeidx in range(Ts):
-                        vec = np.zeros(Ts)
-                        vec[xtildeidx] = 1
-                        if bitstring[xtildeidx] == 1:
-                            # |+> at index, so measure X
-                            phi.measurePauli(0, np.zeros(Ts), vec)
-                        else:
-                            # |0> at index, so measure Z
-                            phi.measurePauli(0, vec, np.zeros(Ts))
-
-                    # old code: matrix inverse method
-                    # insert basis of affine space into G
-                    # space is supported whenever xtilde = 1
-                    # rowidx = 0
-                    # for xtildeidx in range(Ts):
-                    #     if bitstring[xtildeidx] == 1:
-                    #         phi.G[rowidx] = np.zeros(Ts)
-                    #         phi.G[rowidx][xtildeidx] = 1
-                    #         rowidx += 1
-
-                    # make sure matrix has determinant 1, ensuring existence of inverse
-                    # count = 0
-                    # while np.abs(np.linalg.det(phi.G)) != 1:
-                    #     count += 1
-                    #     if count > 1e3:
-                    #         print("k: ", k)
-                    #         print("bitstring: ", bitstring)
-                    #         print("Lbits: ", Lbits)
-
-                    #         print(phi.G)
-                    #         import pdb; pdb.set_trace()
-                    #         raise ValueError("can't make non-singular")
-
-                        # randomly sample remaining rows
-                    #     for i in range(k, Ts):
-                    #         phi.G[i] = np.random.random_integers(0, 1, (Ts))
-
-                    # phi.Gbar = np.linalg.inv(phi.G).T % 2
-
-                    # if not np.allclose(np.dot(phi.G, phi.Gbar.T) % 2, np.eye(Ts)):
-                    #     print(phi.G)
-                    #     print(phi.Gbar.T)
-                    #     import pdb; pdb.set_trace()
-                    #     raise ValueError("bad inverse")
-
-                    # add <\theta_i| \Pi |\phi_a>
-                    try:
-                        subtotal += StabilizerState.innerProduct(theta, phi)
-                    except IndexError:
-                        import pdb; pdb.set_trace()
-
-                # add || <\theta_i| \Pi |H^(\otimes t)> ||^2
-                return np.abs(projfactor*subtotal)**2, projfactor  # norm necessary?
-                return np.abs(projfactor*subtotal/norm)**2
-
-            # parallelize samples over L
-            # pool = ThreadPool(processes=len(decomposed)*len(phases))
-            # results = []
-            # for i in range(L):
-            #     results.append(pool.apply_async(sampleState, ()))
-
-            total = 0  # sum without the factor (2^t / L)
-            stats = {}
-            print("Stats:")
-            for i in range(L):
-                item, proj = sampleState()
-                total += item
-                x = np.abs(proj)**2
-                if (x in stats): stats[x] += 1
-                else: stats[x] = 1
-
-                # total += results[i].get()
-
-            x = 0
-            for item in stats:
-                x += 1
-                print("%0.3f -> %d = %0.3f" % (item, stats[item], 100*stats[item]/L))
-            print("So many: ", x)
-
-            # print("total:", total/L)
-
-            # maybe (2**Ts / L) isn't necessary?
-            # unless one of the projectors is empty...
-            result = (2**Ts / L)*total
-            # result = total  # norm necessary?
-
-        if isG:
-            numerator = result
-        else:
-            denominator = result
-
-        isG = False
-
-    print("numerator: %f" % numerator)
-    print("denominator: %f" % denominator)
-
-    result = (2**u)*numerator/denominator
-    print("Probability of 0: %f" % result)
-    print("Rounded Probability of 0: %0.2f" % np.round(result, 2))
-
-
-def evalStabilizer(m, xi, zeta, bitstring, stateseed):
-    return 0
+    if config["verbose"]:
+        print("Time elapsed: ", str(datetime.now() - starttime))
 
 
 def printProjector(projector):
@@ -411,6 +255,8 @@ def printProjector(projector):
         tmpphase = tmpphase % 4
         lookup = {0: " +", 1: " i", 2: " -", 3: "-i"}
         print(lookup[tmpphase] + genstring)
+    if len(phases) == 0:
+        print("Projector is empty.")
 
 
 def usage(error):
@@ -422,13 +268,15 @@ Full help statement: main.py -h""")
 
 def help():
     print("""Stabilizer simulator usage:
-main.py <circuitfile> <measurement> [reference=circuit/reference]
+main.py <circuitfile> <measurement> [reference=circuit/reference] [samples=1e5] [Lbound=1e-5] [-v] [-np]
 
 Example:
-main.py examples/controlledH.circ _M
+python main.py examples/controlledH.circ _M samples=2e6
 Execute controlled H gate on state |00>, then measure 2nd qubit.
 Expected result: 0 always.
 
+Note: Python 3 is recommended, but not strictly necessary. Some
+print statements look less pretty with python 2.
 
 Arguments:
 <circuitfile>: A file specifying the circuit you want to simulate.
@@ -445,14 +293,53 @@ CX (CNOT) and T. More sophisticated gates can be be used in the input
 file provided the reference file defines them.
 
 <measurement>
-A string of "_", "M", with length equal to the number of qubits in
-the input file. The algorithm samples from the distribution of
-basis states of the qubits marked with "M".
+A string consisting of the characters "_", "M", "0" and "1".
+Must have length equal to the number of qubits in the input file.
+
+If the string consists solely of "_", "0" and "1", the application
+outputs the probability of a measurement result such that the qubits
+have the values specified in the string.
+E.g. "_01" would give the probability of measuring 001 or 101.
+
+If the string contains the character "M", the application samples
+a measurement on the qubits marked with "M". The output is a
+string with length of the number of "M"'s in the input.
+
+E.g. the circuit controlledH.circ creates the two-qubit state |1>|+>.
+The inputs "_M" or "1M" would have 50-50 chance of yielding 0 or 1.
+The input "0M" would return an error message, as the first qubit
+is in the state |1>.
+
+
+The following arguments can be specified in any order, or ommitted.
+The identity of variable is necessary, i.e. write "samples=1e3", not "1e3".
 
 [reference=circuits/reference]
 Location of a reference file defining new gates in terms of the
 standard gate set. Please read the documentation in the provided
-reference file for details.""")
+reference file at circuit/reference for details.
+
+[samples=1e5]
+Number of samples in calculating || P |H^t> ||^2 for projectors P.
+Larger numbers are more accurate. If samples = 1/(p * e^2) then
+there is a 1-p probability of the result being within +-e of
+the correct value. Must be an integer.
+
+[Lbound=1e-3]
+Rather than using a magic state |H^t> we use a state |L> which
+can be written as a linear combination of fewer stabilizer states.
+The inner product <H^t|L> will be greater than (1 - Lbound).
+This variable only becomes relevant for about 10 T gates or more.
+
+[-v]
+Verbose mode. Prints lots of intermediate calculation information.
+Useful for debugging, or understanding the application's inner workings.
+
+[-np]
+Non-parallel mode. Parallelization may cause problems with random
+number generation on some machines. Since the algorithm is highly
+concurrent, non-parallel mode is very slow.
+""")
 
 if __name__ == "__main__":
     main(sys.argv)
