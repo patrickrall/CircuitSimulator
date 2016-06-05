@@ -30,7 +30,7 @@ ___H_
 CZ_M_ # Perform controlled Z, depending on a measurement
 ____R # Reuse this qubit ancilla, is back in 0 state
 
-CT:
+CT: # doesn't work for some reason?
 CCX
 __T
 CCX

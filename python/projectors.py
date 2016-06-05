@@ -1,14 +1,12 @@
 #
 # file: projectors.py
-# Putting it all together: calculate projectors G and H, truncate
-# them to the magic state subspace, and sample || <theta| P |H^t> ||^2
+# Putting it all together: calculate projectors G and H,
+# and truncate them to the magic state subspace.
 #
 
 import numpy as np
 import circuit.compile
 import circuit.gadgetize
-from stabilizer.stabilizer import StabilizerState
-from multiprocessing import Pool
 
 
 # obtain projectors G, H
@@ -29,7 +27,7 @@ def projectors(circ, measure, verbose=False, zeros=False):
 
     # postselect circuit measured qubits
     Mselect = np.random.randint(2, size=len(Ms))
-    if zeros: Mselect = np.zeros(len(Ms))
+    if zeros: Mselect = np.zeros(len(Ms)).astype(int)
 
     # Increment t for measurement-dependent Ts
     for M in MTs:
@@ -47,7 +45,8 @@ def projectors(circ, measure, verbose=False, zeros=False):
 
     # postselect measurement results on Ts
     y = np.random.randint(2, size=t)
-    if zeros: y = np.zeros(t)
+    if zeros: y = np.zeros(t).astype(int)
+    y = np.array([1, 1])
 
     # Print measurement information:
     if verbose:
@@ -139,80 +138,3 @@ def truncate(n, P):
 
     u = len(phases) - len(X)
     return (primePhases, primeXs, primeZs), u
-
-
-# Inner product for some state in |L> ~= |H^t>
-def evalLcomponent(args):
-    (i, L, theta, t, seed) = args  # unpack arguments (easier for parallel code)
-
-    # set unique seed for this calculation
-    np.random.seed((seed * 2**len(L) + i) % 4294967296)
-
-    # compute bitstring by adding rows of l
-    Lbits = list(np.binary_repr(i, width=len(L)))
-    bitstring = np.zeros(t)
-    for idx in range(len(Lbits)):
-        if Lbits[idx] == '1':
-            bitstring += L[idx]
-    bitstring = bitstring.astype(int) % 2
-
-    # Stabilizer state is product of |0> and |+>
-    # 1's in bitstring indicate positions of |+>
-
-    # initialize stabilizer state
-    phi = StabilizerState(t, t)
-
-    # construct state by measuring paulis
-    for xtildeidx in range(t):
-        vec = np.zeros(t)
-        vec[xtildeidx] = 1
-        if bitstring[xtildeidx] == 1:
-            # |+> at index, so measure X
-            phi.measurePauli(0, np.zeros(t), vec)
-        else:
-            # |0> at index, so measure Z
-            phi.measurePauli(0, vec, np.zeros(t))
-
-    return StabilizerState.innerProduct(theta, phi)
-
-
-# Evaluate || <theta| P |H^t> ||^2 for a random stabilizer state theta.
-def sampleTMeasure(args):
-    (P, L, Lnorm, seed, parallel) = args  # unpack arguments (easier for parallel code)
-    (phases, xs, zs) = P
-
-    # empty projector
-    if len(phases) == 0:
-        return 1
-
-    t = len(xs[0])
-
-    # clifford circuit
-    if t == 0:
-        lookup = {0: 1, 2: -1}
-        generators = [1]  # include identity
-        for phase in phases: generators.append(lookup[phase])
-
-        # calculate sum of all permutations of generators
-        return sum(generators)/len(generators)
-
-    # sample random theta
-    theta = StabilizerState.randomStabilizerState(t)
-
-    # project random state to P
-    projfactor = 1
-    for g in range(len(phases)):
-        res = theta.measurePauli(phases[g], zs[g], xs[g])
-        projfactor *= res
-
-        if res == 0: return 0  # theta annihilated by P
-
-    if parallel:  # parallelize for large enough L
-        pool = Pool()
-        total = sum(pool.map(evalLcomponent, [(i, L, theta, t, seed) for i in range(0, 2**len(L))]))
-        pool.close()
-        pool.join()
-    else:
-        total = sum(map(evalLcomponent, [(i, L, theta, t, seed) for i in range(0, 2**len(L))]))
-
-    return 2**t * np.abs(projfactor*total/Lnorm)**2

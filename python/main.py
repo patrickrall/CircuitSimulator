@@ -11,12 +11,12 @@ from datetime import datetime
 import circuit.compile
 import circuit.gadgetize
 import projectors
-from decompose import decompose
+from sample import decompose, sampleProjector
 from multiprocessing import Pool
 
 
 # calculate probability circuit yielding a measurement
-def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, parallel=True):
+def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, parallel=True, exact=False):
     # get projectors
     G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, zeros=False)
 
@@ -39,24 +39,31 @@ def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, para
         printProjector(Hprime)
 
     # calculate |L> ~= |H>
-    L, Lnorm = decompose(t, Lbound)
+    L, Lnorm = decompose(t, Lbound, exact=True)
 
-    if verbose:
+    if verbose and L is None:
+        print("Using exact decomposition of |H^t>: 2^%d" % int(np.ceil(t/2)))
+    elif verbose:
         print("Stabilizer rank of |L>: 2^%d" % len(L))
 
     # parallelization over samples, or over elements of |L>?
     # Can't do both because of yucky "child thread of child thread" handling
-    Lparallel = 2**len(L) > Nsamples
+    if L is None:
+        Lparallel = 2**(np.ceil(t/2)) > Nsamples
+    else:
+        Lparallel = 2**len(L) > Nsamples
+    if not parallel: Lparallel = False
 
     # helper for preventing needless sampling trivial projectors or circuits
     def calcProjector(P, Lparallel, pool=False):
         if len(P[0]) == 0 or len(P[1][0]) == 0:
+            if verbose: print("Empty projector found. Not sampling.")
             # empty projector or Clifford circuit. No sampling needed.
-            return projectors.sampleTMeasure((Gprime, L, Lnorm, 0, False))
+            return Nsamples * sampleProjector((P, L, Lnorm, 0, False))
 
         queries = [(P, L, Lnorm, seed, Lparallel) for seed in range(0, Nsamples)]
-        if pool is not False: return sum(pool.map(projectors.sampleTMeasure, queries))
-        return sum(map(projectors.sampleTMeasure, queries))
+        if pool is not False: return sum(pool.map(sampleProjector, queries))
+        return sum(map(sampleProjector, queries))
 
     # calculate || Gprime |L> ||^2 and || Hprime |L> ||^2 up to a constant
     if parallel and not Lparallel:
@@ -72,14 +79,16 @@ def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, para
         pool.join()
 
     else:
-        if verbose and Lparallel: print("Parallelizing over %d stabilizers in |L>: 2^%d" % 2**len(L))
+        if verbose and Lparallel and L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
+        elif verbose and Lparallel: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
 
         numerator = calcProjector(Gprime, Lparallel)
+        print("H")
         denominator = calcProjector(Hprime, Lparallel)
 
     if verbose:
-        print("|| Gprime |H^t> ||^2:", numerator/Nsamples)
-        print("|| Hprime |H^t> ||^2:", denominator/Nsamples)
+        print("|| Gprime |H^t> ||^2 ~= ", numerator/Nsamples)
+        print("|| Hprime |H^t> ||^2 ~= ", denominator/Nsamples)
 
     return 2**(v-u) * (numerator/denominator)
 
@@ -156,7 +165,7 @@ def main(argv):
     config = {
         "verbose": False,
         "reference": "circuit/reference",
-        "samples": int(1e5),
+        "samples": int(1e3),
         "Lbound": 1e-5,
         "parallel": True,
     }
@@ -165,13 +174,11 @@ def main(argv):
     for i in range(3, len(argv)):
 
         if argv[i] == "-v": config["verbose"] = True
-        if argv[i] == "-np": config["parallel"] = False
-
-        if argv[i][:10] == "reference=": config["reference"] = argv[i][10:]
-
-        if argv[i][:8] == "samples=": config["samples"] = int(float(argv[i][8:]))
-
-        if argv[i][:7] == "Lbound=": config["Lbound"] = float(argv[i][7:])
+        elif argv[i] == "-np": config["parallel"] = False
+        elif argv[i][:10] == "reference=": config["reference"] = argv[i][10:]
+        elif argv[i][:8] == "samples=": config["samples"] = int(float(argv[i][8:]))
+        elif argv[i][:7] == "Lbound=": config["Lbound"] = float(argv[i][7:])
+        else: raise ValueError("Invalid argument: " + argv[i])
 
     if not re.match("^(1|0|M|_)*$", argv[2]):
         return usage("Measurement string must consists only of '1', '0', 'M' or '_'.")
@@ -217,7 +224,7 @@ def main(argv):
         if config["verbose"]: print("Probability mode: calculate probability of measurement outcome")
 
         P = probability(circ, measure, Nsamples=config["samples"], Lbound=config["Lbound"],
-                        parallel=config["parallel"], verbose=config["verbose"])
+                        parallel=config["parallel"], verbose=config["verbose"], exact=True)
         print("Probability:", P)
 
     else:  # algorithm 2: sample bits
@@ -242,8 +249,8 @@ def printProjector(projector):
         genstring = ""
         for i in range(len(x)):
             if (x[i] == 1 and z[i] == 1):
-                tmpphase -= 1  # divide phase by i
-                genstring += "Y"
+                # tmpphase -= 1  # divide phase by i
+                genstring += "(XZ)"
                 continue
             if (x[i] == 1):
                 genstring += "X"
@@ -268,7 +275,7 @@ Full help statement: main.py -h""")
 
 def help():
     print("""Stabilizer simulator usage:
-main.py <circuitfile> <measurement> [reference=circuit/reference] [samples=1e5] [Lbound=1e-5] [-v] [-np]
+main.py <circuitfile> <measurement> [reference=circuit/reference] [samples=1e3] [Lbound=1e-5] [-v] [-np]
 
 Example:
 python main.py examples/controlledH.circ _M samples=2e6
