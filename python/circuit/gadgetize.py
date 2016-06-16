@@ -142,8 +142,8 @@ def gadgetize(circuit, Mdict, y):
                     phases[g], xs[g], zs[g] = conjugateLookup("S", idxs, phases[g], xs[g], zs[g])
 
                 # prepend HS^\dagger to t registers in compiled circuit
-                # for tUpdateGate in ["H", "S", "S", "S"]:
-                #     phases[g], xs[g], zs[g] = conjugateLookup(tUpdateGate, [tpos], phases[g], xs[g], zs[g])
+                for tUpdateGate in ["H", "S", "S", "S"]:
+                    phases[g], xs[g], zs[g] = conjugateLookup(tUpdateGate, [tpos], phases[g], xs[g], zs[g])
 
                 continue
 

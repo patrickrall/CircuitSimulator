@@ -16,9 +16,15 @@ from multiprocessing import Pool
 
 
 # calculate probability circuit yielding a measurement
-def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, parallel=True, exact=False):
+def probability(circ, measure, config):
+
+    # unpack
+    verbose = config["verbose"]
+    parallel = config["parallel"]
+    Nsamples = config["samples"]
+
     # get projectors
-    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, zeros=False)
+    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose)
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
@@ -38,8 +44,13 @@ def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, para
         print("Hprime: (trunacted by %d)" % v)
         printProjector(Hprime)
 
+    # any empty projectors? require exact decomposition so we have norm.
+    if len(Gprime[0]) == 0 or len(Hprime[0]) == 0:
+        print("Empty projectors found. Using exact decomposition to compute norm.")
+        config["exact"] = True
+
     # calculate |L> ~= |H>
-    L, Lnorm = decompose(t, Lbound, exact=True)
+    L, Lnorm = decompose(t, config["fidbound"], config["k"], config["exact"], config["rank"], config["fidelity"])
 
     if verbose and L is None:
         print("Using exact decomposition of |H^t>: 2^%d" % int(np.ceil(t/2)))
@@ -56,12 +67,11 @@ def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, para
 
     # helper for preventing needless sampling trivial projectors or circuits
     def calcProjector(P, Lparallel, pool=False):
-        if len(P[0]) == 0 or len(P[1][0]) == 0:
-            if verbose: print("Empty projector found. Not sampling.")
+        if Lnorm is not None and (len(P[0]) == 0 or len(P[1][0]) == 0):
             # empty projector or Clifford circuit. No sampling needed.
-            return Nsamples * sampleProjector((P, L, Lnorm, 0, False))
+            return Nsamples * sampleProjector((P, L, 0, False)) * np.abs(Lnorm)**2
 
-        queries = [(P, L, Lnorm, seed, Lparallel) for seed in range(0, Nsamples)]
+        queries = [(P, L, seed, Lparallel) for seed in range(0, Nsamples)]
         if pool is not False: return sum(pool.map(sampleProjector, queries))
         return sum(map(sampleProjector, queries))
 
@@ -83,7 +93,6 @@ def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, para
         elif verbose and Lparallel: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
 
         numerator = calcProjector(Gprime, Lparallel)
-        print("H")
         denominator = calcProjector(Hprime, Lparallel)
 
     if verbose:
@@ -94,10 +103,18 @@ def probability(circ, measure, Nsamples=5000, Lbound=0.0001, verbose=False, para
 
 
 # sample from a set of qubits
-def sampleQubits(circ, measure, sample, Nsamples=5000, Lbound=0.0001, verbose=False, parallel=True):
+def sampleQubits(circ, measure, sample, config):
 
-    def prob(measure):  # shortcut
-        return probability(circ, measure, Nsamples=Nsamples, Lbound=Lbound, parallel=parallel, verbose=verbose)
+    # unpack config
+    verbose = config["verbose"]
+
+    def prob(measure, exact=None):  # shortcut
+        if exact is not None:
+            old = config["exact"]
+            config["exact"] = exact
+        P = probability(circ, measure, config=config)
+        if exact is not None: config["exact"] = old
+        return P
 
     # recursive implementation: need the probability of sampling a smaller
     # set of qubits in order to sample next one
@@ -105,7 +122,7 @@ def sampleQubits(circ, measure, sample, Nsamples=5000, Lbound=0.0001, verbose=Fa
         if len(qubits) == 1:  # base case
             # is a sample even possible? Some qubit constraints are unsatisfiable.
             if len(measure.keys()) != 0:  # other measurements present
-                P = prob(measure)
+                P = prob(measure, exact=True)
                 if verbose: print("Constraints present. Probability of satifying: %f\n" % P)
                 if P == 0: return "", {}, 0  # not satisfiable
                 if P < 1e-5:
@@ -159,15 +176,16 @@ def main(argv):
     if argv[1] == "-h":
         return help()
 
-    if len(argv) < 3 or len(argv) > 8:
-        return usage("Wrong number of arguments.")
-
     config = {
         "verbose": False,
+        "parallel": True,
         "reference": "circuit/reference",
         "samples": int(1e3),
-        "Lbound": 1e-5,
-        "parallel": True,
+        "fidbound": 1e-5,
+        "k": None,
+        "exact": False,
+        "rank": False,
+        "fidelity": False,
     }
 
     # parse optional arguments
@@ -177,7 +195,11 @@ def main(argv):
         elif argv[i] == "-np": config["parallel"] = False
         elif argv[i][:10] == "reference=": config["reference"] = argv[i][10:]
         elif argv[i][:8] == "samples=": config["samples"] = int(float(argv[i][8:]))
-        elif argv[i][:7] == "Lbound=": config["Lbound"] = float(argv[i][7:])
+        elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])
+        elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
+        elif argv[i] == "-exact": config["exact"] = True
+        elif argv[i] == "-rank": config["rank"] = True
+        elif argv[i] == "-fidelity": config["fidelity"] = True
         else: raise ValueError("Invalid argument: " + argv[i])
 
     if not re.match("^(1|0|M|_)*$", argv[2]):
@@ -222,16 +244,15 @@ def main(argv):
 
     if len(sample) == 0:  # algorithm 1: compute probability
         if config["verbose"]: print("Probability mode: calculate probability of measurement outcome")
+        config["exact"] = True
 
-        P = probability(circ, measure, Nsamples=config["samples"], Lbound=config["Lbound"],
-                        parallel=config["parallel"], verbose=config["verbose"], exact=True)
+        P = probability(circ, measure, config)
         print("Probability:", P)
 
     else:  # algorithm 2: sample bits
         if config["verbose"]: print("Sample mode: sample marked bits")
 
-        X = sampleQubits(circ, measure, sample, Nsamples=config["samples"], Lbound=config["Lbound"],
-                         parallel=config["parallel"], verbose=config["verbose"])
+        X = sampleQubits(circ, measure, sample, config)
         if len(X) == 0:  # no sample possible
             print("Error: circuit output state cannot produce a measurement with these constraints.")
         else:
@@ -249,8 +270,8 @@ def printProjector(projector):
         genstring = ""
         for i in range(len(x)):
             if (x[i] == 1 and z[i] == 1):
-                # tmpphase -= 1  # divide phase by i
-                genstring += "(XZ)"
+                tmpphase -= 1  # divide phase by i
+                genstring += "Y"
                 continue
             if (x[i] == 1):
                 genstring += "X"
@@ -275,7 +296,8 @@ Full help statement: main.py -h""")
 
 def help():
     print("""Stabilizer simulator usage:
-main.py <circuitfile> <measurement> [reference=circuit/reference] [samples=1e3] [Lbound=1e-5] [-v] [-np]
+main.py <circuitfile> <measurement> [reference=circuit/reference] [samples=1e3]
+                    [-v] [-np] [-exact] [-rank] [k=?] [fidbound=1e-5] [-fidelity]
 
 Example:
 python main.py examples/controlledH.circ _M samples=2e6
@@ -332,12 +354,6 @@ Larger numbers are more accurate. If samples = 1/(p * e^2) then
 there is a 1-p probability of the result being within +-e of
 the correct value. Must be an integer.
 
-[Lbound=1e-3]
-Rather than using a magic state |H^t> we use a state |L> which
-can be written as a linear combination of fewer stabilizer states.
-The inner product <H^t|L> will be greater than (1 - Lbound).
-This variable only becomes relevant for about 10 T gates or more.
-
 [-v]
 Verbose mode. Prints lots of intermediate calculation information.
 Useful for debugging, or understanding the application's inner workings.
@@ -346,6 +362,51 @@ Useful for debugging, or understanding the application's inner workings.
 Non-parallel mode. Parallelization may cause problems with random
 number generation on some machines. Since the algorithm is highly
 concurrent, non-parallel mode is very slow.
+
+--- L selection parameters ---
+The algorithm must construct a magic state |H^t>, where t is the number
+of T-gates in the circuit. This state is resolved as a linear combination
+of several stabilizer states. An exact decomposition is achieved by
+decomposing |H^2> into a sum two stabilizer states, resulting in a
+decomposition of |H^t> into about 2^(t/2) stabilizer states.
+An exact decomposition of this form is necessary for calculating
+probability queries like "_01".
+
+For sampling queries like "_0M" we can get away with a more efficient
+decomposition of |H^t> into 2^(0.23t) stabilizer states. Rather than
+constructing |H^t> we construct a state |L> that is very similar to
+|H^t>. |L> is defined by a k*t matrix L, where k is an input parameter.
+L is randomly chosen.
+
+[-exact]
+Pass this option to always use an exact decomposition with scaling 2^(t/2).
+This is only makes a difference with sampling queries like "_0M", where
+an |L> decomposition would be used otherwise.
+
+[-rank]
+Rank verification.
+The k*t matrix L should have rank k. Verifiying this for large k and t
+can take a long time, so this is not done by default. A random k*t
+matrix usually has rank k.
+
+[k=?]
+The number of rows in the k*t matrix L. If k > t then k is set to t.
+This parameter overrides the fidbound parameter. It is off by default,
+so fidbound=1e-3 is used if neither option is specified.
+
+[fidbound=1e-3]
+k can also be chosen according to:
+    k = ceil(1 - 2*t*log2(cos(pi/8)) - log2(fidbound))
+This usually ensures that the inner product <H^t|L> is greater than
+(1 - fidbound). By default, this parameter only affects the choice of
+k, and the inner product <H^t|L> is not computed. If k > t/2 then
+an exact decomposition is used instead.
+
+[-fidelity]
+Inner product <H^t|L> display (and verification).
+Pass this option and <H^t|L> is computed, which runs in time 2^(0.23t).
+If the k option is specified, then <H^t|L> is simply printed.
+If the fidbount option is specified, L is sampled until <H^t|L> > 1-fidbound.
 """)
 
 if __name__ == "__main__":

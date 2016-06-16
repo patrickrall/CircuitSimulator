@@ -46,7 +46,6 @@ def projectors(circ, measure, verbose=False, zeros=False):
     # postselect measurement results on Ts
     y = np.random.randint(2, size=t)
     if zeros: y = np.zeros(t).astype(int)
-    y = np.array([1, 1])
 
     # Print measurement information:
     if verbose:
