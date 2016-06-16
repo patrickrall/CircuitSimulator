@@ -44,8 +44,27 @@ def probability(circ, measure, config):
         print("Hprime: (trunacted by %d)" % v)
         printProjector(Hprime)
 
+    # check for -I in numerator
+    for i in range(len(Gprime[0])):
+        if Gprime[0][i] == 2 and \
+           np.allclose(np.zeros(len(Gprime[1][i])), Gprime[1][i]) and \
+           np.allclose(np.zeros(len(Gprime[2][i])), Gprime[2][i]):
+            if verbose: print("Found negative identity. Answer is 0.")
+            return 0
+
+    # check if projectors are identical
+    same = True
+    for i in range(len(Gprime[0])):
+        same = same and Gprime[0][i] == Hprime[0][i] and \
+           np.allclose(Gprime[1][i], Hprime[1][i]) and \
+           np.allclose(Gprime[2][i], Hprime[2][i])
+
+    if same:
+        if verbose: print("Projectors are identical. Answer is 1.")
+        return 1
+
     # any empty projectors? require exact decomposition so we have norm.
-    if len(Gprime[0]) == 0 or len(Hprime[0]) == 0:
+    if len(Gprime[0]) == 0 or len(Hprime[0]) == 0 and not config["exact"]:
         print("Empty projectors found. Using exact decomposition to compute norm.")
         config["exact"] = True
 
@@ -404,9 +423,9 @@ an exact decomposition is used instead.
 
 [-fidelity]
 Inner product <H^t|L> display (and verification).
-Pass this option and <H^t|L> is computed, which runs in time 2^(0.23t).
+Pass this option and <H^t|L> is computed in time 2^(0.23t).
 If the k option is specified, then <H^t|L> is simply printed.
-If the fidbount option is specified, L is sampled until <H^t|L> > 1-fidbound.
+If the fidbound option is specified, L is sampled until <H^t|L> > 1-fidbound.
 """)
 
 if __name__ == "__main__":
