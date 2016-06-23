@@ -30,7 +30,9 @@
 // L L L
 // L L L
 
-void decompose(int *isProbability, gsl_matrix *L, double *norm, const int t, const double delta, const short exact){
+//if a negative value is passed for k, the function finds k on its own
+void decompose(int *isProbability, gsl_matrix *L, double *norm, const int t, int k, 
+		const double fidbound, const short exact, const short rank, const short fidelity){
 	
 	//trivial case
 	if(t == 0){
@@ -41,14 +43,23 @@ void decompose(int *isProbability, gsl_matrix *L, double *norm, const int t, con
 	
 	double v = cos(M_PI/8);
 
-    int k = ceil(1 - 2*t*log2(v) - log2(delta));
+	short forceK;
+	
+	if(k <= 0){
+		forceK  = 0;
+		//pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
+		k = ceil(1 - 2*t*log2(v) - log2(fidbound));
+	}
+	else{
+		forceK = 1;
+	}
 	
 	//can achieve k = t/2 by pairs of stabilizer states
-	if(k > t/2 || exact){
+	if(exact || (k > t/2 && !forceK)){
 		
 		*isProbability = 1;
 		
-		*norm = pow(2, t/2);
+		*norm = pow(2, ((float)(t/2))/2.);
 		if(t%2){
 			*norm *= 2*v;
 		}
@@ -62,8 +73,16 @@ void decompose(int *isProbability, gsl_matrix *L, double *norm, const int t, con
 	
 	*isProbability = 0;
 	
+	//prevents infinite loops
+    if (k > t){
+        if (forceK){
+			printf("\nCan't have k > t. Setting k to %d.", t);
+		}
+		
+		k = t;
+	}
+	
 	double innerProduct=0;
-	int count = 0;
 	
 	srand(time(NULL));
 	
@@ -77,10 +96,7 @@ void decompose(int *isProbability, gsl_matrix *L, double *norm, const int t, con
 	
 	double Z_L;
 	
-	while(innerProduct < 1-delta){
-		
-		count++;
-		//printf("\nrank attempt: %d", count);
+	while(innerProduct < 1-fidbound){
 		
 		for(int i=0;i<k;i++){
 			for(int j=0;j<t;j++){
@@ -88,68 +104,87 @@ void decompose(int *isProbability, gsl_matrix *L, double *norm, const int t, con
 			}
 		}
 		
-		int rank = 0;
-		//rank of a matrix is the number of non-zero values in its singular value decomposition
-		gsl_matrix_transpose_memcpy(U, L);
-		gsl_linalg_SV_decomp(U, V, S, work);
-		for(int i=0;i<k;i++){
-			if(fabs(gsl_vector_get(S, i)) > 0.00001){
-				rank++;
-			}
-		}
-		
-		//check rank
-		if(rank < k){
-			continue;
-		}
-		
-		//compute Z(L) = sum_x 2^{-|x|/2}
-        Z_L = 0;
-		
-		gsl_vector *z, *x;
-		z = gsl_vector_alloc(k);
-		x = gsl_vector_alloc(t);
-		int *zArray = (int *)calloc(k, sizeof(int));
-		int currPos, currTransfer;
-		for(int i=0;i<pow(2,k);i++){
-			//starting from k 0s, add (binary) +1 2^k times, effectively generating all possible vectors z of length k
-			//least important figure is on the very left
-			currPos = 0;
-			currTransfer = 1;
-			while(currTransfer && currPos<k){
-				*(zArray+currPos) += currTransfer;
-				if(*(zArray+currPos) > 1){
-					//current position overflowed -> transfer to next
-					*(zArray+currPos) = 0;
-					currTransfer = 1;
-					currPos++;
-				}
-				else{
-					currTransfer = 0;
-				}
-			}
-			
+		if(rank){
+			int currRank = 0;
+			//rank of a matrix is the number of non-zero values in its singular value decomposition
+			gsl_matrix_transpose_memcpy(U, L);
+			gsl_linalg_SV_decomp(U, V, S, work);
 			for(int i=0;i<k;i++){
-				gsl_vector_set(z, i, (double)(*(zArray+currPos)));
+				if(fabs(gsl_vector_get(S, i)) > 0.00001){
+					currRank++;
+				}
 			}
 			
-			gsl_blas_dgemv(CblasTrans, 1., L, z, 0., x);
-			
-			double temp = 0;
-			for(int i=0;i<t;i++){
-				temp += mod((int)gsl_vector_get(x, i), 2);
+			//check rank
+			if(currRank < k){
+				printf("\nL has insufficient rank. Sampling again...");
+				continue;
 			}
-			
-			Z_L += pow(2, -temp/2);
 		}
 		
-		innerProduct = pow(2,k) * pow(v, 2*t) / Z_L;
-		
+		if(fidelity){
+			//compute Z(L) = sum_x 2^{-|x|/2}
+			Z_L = 0;
+			
+			gsl_vector *z, *x;
+			z = gsl_vector_alloc(k);
+			x = gsl_vector_alloc(t);
+			int *zArray = (int *)calloc(k, sizeof(int));
+			int currPos, currTransfer;
+			for(int i=0;i<pow(2,k);i++){
+				//starting from k 0s, add (binary) +1 2^k times, effectively generating all possible vectors z of length k
+				//least important figure is on the very left
+				currPos = 0;
+				currTransfer = 1;
+				while(currTransfer && currPos<k){
+					*(zArray+currPos) += currTransfer;
+					if(*(zArray+currPos) > 1){
+						//current position overflowed -> transfer to next
+						*(zArray+currPos) = 0;
+						currTransfer = 1;
+						currPos++;
+					}
+					else{
+						currTransfer = 0;
+					}
+				}
+				
+				for(int i=0;i<k;i++){
+					gsl_vector_set(z, i, (double)(*(zArray+currPos)));
+				}
+				
+				gsl_blas_dgemv(CblasTrans, 1., L, z, 0., x);
+				
+				double temp = 0;
+				for(int i=0;i<t;i++){
+					temp += mod((int)gsl_vector_get(x, i), 2);
+				}
+				
+				Z_L += pow(2, -temp/2);
+			}
+			
+			innerProduct = pow(2,k) * pow(v, 2*t) / Z_L;
+			
+			if(forceK){
+				printf("\nInner product <H^t|L>: %lf", innerProduct);
+				break;
+			}
+			else if(innerProduct < 1-fidbound){
+				printf("\nInner product <H^t|L>: %lf - Not good enough!", innerProduct);
+			}
+			else{
+				printf("\nInner product <H^t|L>: %lf", innerProduct);
+			}
+		}
+		else{
+			break;
+		}
 	}
 	
-	*norm = sqrt(pow(2,k) * Z_L);
+	if(fidelity){
+		*norm = sqrt(pow(2,k) * Z_L);
+	}
 	
-	//printf("\ninner product: %.3lf", innerProduct);
 }
 
 static char *binrep (unsigned int val, char *buff, int sz) {
@@ -180,7 +215,8 @@ static char *binrep (unsigned int val, char *buff, int sz) {
     return pbuff+1;
 }
 
-void evalLcomponent(gsl_complex *innerProduct, unsigned int i, gsl_matrix *L, struct StabilizerStates *theta, int k, int t){
+//Inner product for some state in |L> ~= |H^t>
+void evalLcomponent(gsl_complex *innerProd, unsigned int i, gsl_matrix *L, struct StabilizerStates *theta, int k, int t){
 	
 	//compute bitstring by adding rows of l
     char buff[k+1];
@@ -223,7 +259,7 @@ void evalLcomponent(gsl_complex *innerProduct, unsigned int i, gsl_matrix *L, st
 	//construct state by measuring paulis
 	for(int xtildeidx=0;xtildeidx<t;xtildeidx++){
 		gsl_vector_set_zero(tempVector);
-		tempVector[xtildeidx] = 1;
+		gsl_vector_set(tempVector, xtildeidx, 1);
 		if((int)gsl_vector_get(bitstring, xtildeidx) == 1){
 			//|+> at index, so measure X
 			measurePauli(phi, 0, zeroVector, tempVector);
@@ -235,7 +271,75 @@ void evalLcomponent(gsl_complex *innerProduct, unsigned int i, gsl_matrix *L, st
 	}
 	
 	int *eps, *p, *m;
-	innerProduct(theta, phi, eps, p, m, innerProduct, 0);
+	innerProduct(theta, phi, eps, p, m, innerProd, 0);
+}
+
+//Inner product for some state in |H^t> using pairwise decomposition
+void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerStates *theta, int t){
+	
+	int size = ceil(t/2);
+	
+    char buff[size+1];
+	char *bits = binrep(i,buff,size);
+	
+	struct StabilizerStates *phi = (struct StabilizerStates *)malloc(sizeof(struct StabilizerStates));
+	phi->n = t;
+	phi->k = t;
+	phi->Q = 0;
+	phi->h = gsl_vector_alloc(phi->n);
+	gsl_vector_set_zero(phi->h);
+	phi->D = gsl_vector_alloc(phi->n);
+	gsl_vector_set_zero(phi->D);
+	phi->G = gsl_matrix_alloc(phi->n, phi->n);
+	gsl_matrix_set_identity(phi->G);
+	phi->Gbar = gsl_matrix_alloc(phi->n, phi->n);
+	gsl_matrix_set_identity(phi->Gbar);
+	phi->J = gsl_matrix_alloc(phi->n, phi->n);
+	gsl_matrix_set_zero(phi->J);
+	
+	for(int j=0;j<size;j++){
+		if(bits[j] == '0' && !(size%2 && j==size-1)){
+			gsl_matrix_set(phi->J, j*2+1, j*2, 4);
+			gsl_matrix_set(phi->J, j*2, j*2+1, 4);
+		}
+	}
+	
+	gsl_vector *tempVector, *zeroVector;
+	tempVector = gsl_vector_alloc(t);
+	zeroVector = gsl_vector_alloc(t);
+	gsl_vector_set_zero(zeroVector);
+	
+	for(int j=0;j<size;j++){
+		gsl_vector_set_zero(tempVector);
+		
+		if(size%2 && j==size-1){
+			
+			gsl_vector_set(tempVector, t-1, 1);
+			
+			//last qubit: |H> = (1/2v)(|0> + |+>)
+			if(bits[j] == '0'){
+				measurePauli(phi, 0, tempVector, zeroVector);	//|0>, measure Z
+			}
+			else{
+				measurePauli(phi, 0, zeroVector, tempVector);	//|+>, measure X
+			}
+			
+			continue;
+		}
+		
+		if(bits[j] == '0'){
+			continue;
+		}
+		
+		gsl_vector_set(tempVector, j*2+1, 1);
+		gsl_vector_set(tempVector, j*2, 1);
+		
+		measurePauli(phi, 0, zeroVector, tempVector);	//measure XX
+		measurePauli(phi, 0, tempVector, zeroVector);	//measure ZZ
+	}
+	
+	int *eps, *p, *m;
+	innerProduct(theta, phi, eps, p, m, innerProd, 0);
 }
 
 int main(int argc, char* argv[]){
