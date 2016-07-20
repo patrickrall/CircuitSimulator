@@ -60,8 +60,8 @@ def countY(circuit):
 
 
 # contract circuit into single projector
+# Mdict: postselected bits to determine circuit
 # y: postselected T ancilla measurements
-# Mdict: postselected output and other measurements
 def gadgetize(circuit, Mdict, y):
     n = len(standardGate(circuit.split('\n', 1)[0], lineMode=True))
     size = n + len(y)
@@ -92,6 +92,7 @@ def gadgetize(circuit, Mdict, y):
     # conjugate stabilizer generators:
     tpos = n
     for line in reversed(circuit.splitlines()):
+
         gate = standardGate(line, lineMode=True)
 
         if line == "": continue
@@ -114,11 +115,11 @@ def gadgetize(circuit, Mdict, y):
             "CX": {(0, 0, 0, 0): (0, 0, 0, 0, 0), (0, 0, 1, 0): (0, 0, 0, 1, 0), (0, 0, 0, 1): (0, 0, 1, 0, 1), (0, 0, 1, 1): (0, 0, 1, 1, 1),
                    (1, 0, 0, 0): (0, 1, 0, 1, 0), (1, 0, 1, 0): (0, 1, 0, 0, 0), (1, 0, 0, 1): (0, 1, 1, 1, 1), (1, 0, 1, 1): (0, 1, 1, 0, 1),
                    (0, 1, 0, 0): (0, 0, 1, 0, 0), (0, 1, 1, 0): (2, 1, 1, 1, 0), (0, 1, 0, 1): (0, 0, 0, 0, 1), (0, 1, 1, 1): (0, 0, 0, 1, 1),
-                   (1, 1, 0, 0): (0, 1, 1, 1, 0), (1, 1, 1, 0): (0, 1, 1, 0, 1), (1, 1, 0, 1): (0, 1, 0, 1, 1), (1, 1, 1, 1): (0, 1, 0, 0, 1)}
+                   (1, 1, 0, 0): (0, 1, 1, 1, 0), (1, 1, 1, 0): (0, 1, 1, 0, 0), (1, 1, 0, 1): (0, 1, 0, 1, 1), (1, 1, 1, 1): (0, 1, 0, 0, 1)}
             # "CX": {"IX": "IX",       "IZ": "ZZ",       "I(XZ)": "Z(XZ)",
             #       "XX": "XI",       "XZ": "(XZ)(XZ)", "X(XZ)": "(XZ)Z",
             #       "ZX": "-(XZ)X",   "ZZ": "IZ",       "Z(XZ)": "I(XZ)",
-            #       "(XZ)X": "(XZ)Z", "(XZ)Z": "X(XZ)", "(XZ)(XZ)": "XZ",
+            #       "(XZ)X": "(XZ)I", "(XZ)Z": "X(XZ)", "(XZ)(XZ)": "XZ",
             #    }
         }
 

@@ -16,7 +16,7 @@ import circuit.gadgetize
 # Measurements by the circuit and T gate measurements
 # are selected automatically at random. Setting the zeros
 # flag turns off randomness and makes all measurements |0>.
-def projectors(circ, measure, verbose=False, zeros=False):
+def projectors(circ, measure, verbose=False, y=None):
     n = len(circuit.compile.standardGate(circ.splitlines()[0], lineMode=True))
 
     t, Ms, MTs = circuit.gadgetize.countY(circ)
@@ -27,7 +27,6 @@ def projectors(circ, measure, verbose=False, zeros=False):
 
     # postselect circuit measured qubits
     Mselect = np.random.randint(2, size=len(Ms))
-    if zeros: Mselect = np.zeros(len(Ms)).astype(int)
 
     # Increment t for measurement-dependent Ts
     for M in MTs:
@@ -44,8 +43,16 @@ def projectors(circ, measure, verbose=False, zeros=False):
         measure[M] = Mselect[idx]
 
     # postselect measurement results on Ts
-    y = np.random.randint(2, size=t)
-    if zeros: y = np.zeros(t).astype(int)
+    if y is None:
+        y = np.random.randint(2, size=t)
+    else:
+        tmpY = []
+        if len(y) != t: raise ValueError("y needs to have length %d" % t)
+        for l in y:
+            if l == "0": tmpY.append(0)
+            elif l == "1": tmpY.append(1)
+            else: raise ValueError("Only 0s and 1s allowed in y string.")
+        y = np.array(tmpY).astype(int)
 
     # Print measurement information:
     if verbose:

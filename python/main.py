@@ -24,7 +24,7 @@ def probability(circ, measure, config):
     Nsamples = config["samples"]
 
     # get projectors
-    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose)
+    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, y=config["y"])
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
@@ -41,7 +41,7 @@ def probability(circ, measure, config):
         print("Truncate projectors to magic state space:")
         print("Gprime: (truncated by %d)" % u)
         printProjector(Gprime)
-        print("Hprime: (trunacted by %d)" % v)
+        print("Hprime: (truncated by %d)" % v)
         printProjector(Hprime)
 
     # check for -I in numerator
@@ -55,13 +55,14 @@ def probability(circ, measure, config):
     # check if projectors are identical
     same = True
     for i in range(len(Gprime[0])):
-        same = same and Gprime[0][i] == Hprime[0][i] and \
-           np.allclose(Gprime[1][i], Hprime[1][i]) and \
-           np.allclose(Gprime[2][i], Hprime[2][i])
+        if i not in Hprime[0]: same = False
+        same = (same and Gprime[0][i] == Hprime[0][i] and
+                np.allclose(Gprime[1][i], Hprime[1][i]) and
+                np.allclose(Gprime[2][i], Hprime[2][i]))
 
     if same:
-        if verbose: print("Projectors are identical. Answer is 1.")
-        return 1
+        if verbose: print("Projectors are identical.")
+        return 2**(v-u)
 
     # any empty projectors? require exact decomposition so we have norm.
     if len(Gprime[0]) == 0 or len(Hprime[0]) == 0 and not config["exact"]:
@@ -123,7 +124,6 @@ def probability(circ, measure, config):
 
 # sample from a set of qubits
 def sampleQubits(circ, measure, sample, config):
-
     # unpack config
     verbose = config["verbose"]
 
@@ -189,11 +189,11 @@ def sampleQubits(circ, measure, sample, config):
 
 
 def main(argv):
-    if len(argv) < 2:
-        return usage("Wrong number of arguments.")
-
-    if argv[1] == "-h":
+    if len(argv) > 1 and argv[1] == "-h":
         return help()
+
+    if len(argv) < 3:
+        return usage("Wrong number of arguments.")
 
     config = {
         "verbose": False,
@@ -205,6 +205,7 @@ def main(argv):
         "exact": False,
         "rank": False,
         "fidelity": False,
+        "y": None,
     }
 
     # parse optional arguments
@@ -216,6 +217,7 @@ def main(argv):
         elif argv[i][:8] == "samples=": config["samples"] = int(float(argv[i][8:]))
         elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])
         elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
+        elif argv[i][:2] == "y=": config["y"] = argv[i][2:]
         elif argv[i] == "-exact": config["exact"] = True
         elif argv[i] == "-rank": config["rank"] = True
         elif argv[i] == "-fidelity": config["fidelity"] = True
@@ -403,7 +405,7 @@ This is only makes a difference with sampling queries like "_0M", where
 an |L> decomposition would be used otherwise.
 
 [-rank]
-Rank verification.
+Force rank verification.
 The k*t matrix L should have rank k. Verifiying this for large k and t
 can take a long time, so this is not done by default. A random k*t
 matrix usually has rank k.
@@ -418,14 +420,23 @@ k can also be chosen according to:
     k = ceil(1 - 2*t*log2(cos(pi/8)) - log2(fidbound))
 This usually ensures that the inner product <H^t|L> is greater than
 (1 - fidbound). By default, this parameter only affects the choice of
-k, and the inner product <H^t|L> is not computed. If k > t/2 then
-an exact decomposition is used instead.
+k, and the inner product <H^t|L> is not computed, so as to verify
+that it is greater than (1 - fidbound). If k > t/2 then an exact
+decomposition is used instead.
 
 [-fidelity]
 Inner product <H^t|L> display (and verification).
 Pass this option and <H^t|L> is computed in time 2^(0.23t).
 If the k option is specified, then <H^t|L> is simply printed.
 If the fidbound option is specified, L is sampled until <H^t|L> > 1-fidbound.
+
+
+--- Debugging ---
+[y=?]
+Set the postselection of the T gates. E.g. y=0010.
+Output should be independent of the postselection, at least
+up to some small error. If different y give different results
+then there is a problem somewhere.
 """)
 
 if __name__ == "__main__":
