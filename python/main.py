@@ -24,7 +24,7 @@ def probability(circ, measure, config):
     Nsamples = config["samples"]
 
     # get projectors
-    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, y=config["y"])
+    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, x=config["x"], y=config["y"])
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
@@ -55,7 +55,7 @@ def probability(circ, measure, config):
     # check if projectors are identical
     same = True
     for i in range(len(Gprime[0])):
-        if i not in Hprime[0]: same = False
+        if i > len(Hprime[0])-1: same = False
         same = (same and Gprime[0][i] == Hprime[0][i] and
                 np.allclose(Gprime[1][i], Hprime[1][i]) and
                 np.allclose(Gprime[2][i], Hprime[2][i]))
@@ -206,6 +206,7 @@ def main(argv):
         "rank": False,
         "fidelity": False,
         "y": None,
+        "x": None,
     }
 
     # parse optional arguments
@@ -218,6 +219,7 @@ def main(argv):
         elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])
         elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
         elif argv[i][:2] == "y=": config["y"] = argv[i][2:]
+        elif argv[i][:2] == "x=": config["x"] = argv[i][2:]
         elif argv[i] == "-exact": config["exact"] = True
         elif argv[i] == "-rank": config["rank"] = True
         elif argv[i] == "-fidelity": config["fidelity"] = True
@@ -292,6 +294,7 @@ def printProjector(projector):
         for i in range(len(x)):
             if (x[i] == 1 and z[i] == 1):
                 tmpphase -= 1  # divide phase by i
+                # genstring += "(XZ)"
                 genstring += "Y"
                 continue
             if (x[i] == 1):

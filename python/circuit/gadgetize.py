@@ -10,7 +10,7 @@ import numpy as np
 
 # count the number of random bits to generate
 # this is the number of Ts plus measured ancillas
-# assumes circuit consists only of gates in the gate set
+# assumes circuit consists only of gates in the gate set, i.e. is compiled
 def countY(circuit):
     Ts = 0
     Tcache = []  # recent T gates to check for any consecutive Ts
@@ -87,15 +87,15 @@ def gadgetize(circuit, Mdict, y):
     # set T ancillas
     for i in range(n, size): phases, xs, zs = gen(i, y[i-n], phases, xs, zs)
 
-    # return phases, xs, zs  # debug
-
     # conjugate stabilizer generators:
     tpos = n
+
+    # from main import printProjector
+    # printProjector(([phases[0]], [xs[0]], [zs[0]]))
     for line in reversed(circuit.splitlines()):
+        if line == "": continue
 
         gate = standardGate(line, lineMode=True)
-
-        if line == "": continue
 
         #  skip if contains a measurement
         if 'M' in gate:
@@ -103,6 +103,17 @@ def gadgetize(circuit, Mdict, y):
             if Mdict[Midx] == 0: continue
 
         std = standardGate(line)
+
+        if False:
+            pr = "  "
+            for i in line:
+                if i == "T":
+                    pr = pr + "[" + i + str(y[tpos-n]) + "]"
+                elif i == "M":
+                    pr = pr + "[" + i + "1]"
+                else:
+                    pr = pr + "[" + i + " ]"
+            print(pr)
 
         idxs = []
         for letter in std:
@@ -112,27 +123,35 @@ def gadgetize(circuit, Mdict, y):
             "H": {(0, 0): (0, 0, 0), (1, 0): (0, 0, 1), (0, 1): (0, 1, 0), (1, 1): (2, 1, 1)},  # X->Z, Z->X
             "X": {(0, 0): (0, 0, 0), (1, 0): (0, 1, 0), (0, 1): (2, 0, 1), (1, 1): (2, 1, 1)},  # X->X, Z->-Z
             "S": {(0, 0): (0, 0, 0), (1, 0): (1, 1, 1), (0, 1): (0, 0, 1), (1, 1): (1, 1, 0)},  # X->Y, Z->Z
-            "CX": {(0, 0, 0, 0): (0, 0, 0, 0, 0), (0, 0, 1, 0): (0, 0, 0, 1, 0), (0, 0, 0, 1): (0, 0, 1, 0, 1), (0, 0, 1, 1): (0, 0, 1, 1, 1),
-                   (1, 0, 0, 0): (0, 1, 0, 1, 0), (1, 0, 1, 0): (0, 1, 0, 0, 0), (1, 0, 0, 1): (0, 1, 1, 1, 1), (1, 0, 1, 1): (0, 1, 1, 0, 1),
-                   (0, 1, 0, 0): (0, 0, 1, 0, 0), (0, 1, 1, 0): (2, 1, 1, 1, 0), (0, 1, 0, 1): (0, 0, 0, 0, 1), (0, 1, 1, 1): (0, 0, 0, 1, 1),
-                   (1, 1, 0, 0): (0, 1, 1, 1, 0), (1, 1, 1, 0): (0, 1, 1, 0, 0), (1, 1, 0, 1): (0, 1, 0, 1, 1), (1, 1, 1, 1): (0, 1, 0, 0, 1)}
-            # "CX": {"IX": "IX",       "IZ": "ZZ",       "I(XZ)": "Z(XZ)",
-            #       "XX": "XI",       "XZ": "(XZ)(XZ)", "X(XZ)": "(XZ)Z",
-            #       "ZX": "-(XZ)X",   "ZZ": "IZ",       "Z(XZ)": "I(XZ)",
-            #       "(XZ)X": "(XZ)I", "(XZ)Z": "X(XZ)", "(XZ)(XZ)": "XZ",
-            #    }
         }
 
         def conjugateLookup(std, idxs, phase, xs, zs):
-            mapping = lookup[std]
             if (len(std) == 1):
+                mapping = lookup[std]
                 state = (xs[idxs[0]], zs[idxs[0]])
                 ph, xs[idxs[0]], zs[idxs[0]] = mapping[state]
                 phase = (phase + ph) % 4
-            else:
-                state = (xs[idxs[0]], zs[idxs[0]], xs[idxs[1]], zs[idxs[1]])
-                ph, xs[idxs[0]], zs[idxs[0]], xs[idxs[1]], zs[idxs[1]] = mapping[state]
-                phase = (phase + ph) % 4
+            else:  # evaluate CNOT
+                phase = 0
+                top = ""
+                bot = ""
+                if xs[idxs[0]] == 1:
+                    top += "X"
+                    bot += "X"
+                if zs[idxs[0]] == 1: top += "Z"
+                if xs[idxs[1]] == 1: bot += "X"
+                if zs[idxs[1]] == 1:
+                    top += "Z"
+                    bot += "Z"
+
+                top = top.replace("ZZ", "")
+                bot = bot.replace("XX", "")
+
+                xs[idxs[0]] = 1 if ("X" in top) else 0
+                zs[idxs[0]] = 1 if ("Z" in top) else 0
+                xs[idxs[1]] = 1 if ("X" in bot) else 0
+                zs[idxs[1]] = 1 if ("Z" in bot) else 0
+
             return phase, xs, zs
 
         for g in range(len(phases)):  # update all generators
@@ -153,6 +172,12 @@ def gadgetize(circuit, Mdict, y):
         if std == "T":
             tpos += 1
 
+        # printProjector(([phases[0]], [xs[0]], [zs[0]]))
+        # test = input()
+        # print("")
+
+    # printProjector((phases, xs, zs))
+    # raise ValueError("hi")
     return phases, xs, zs
 
 
