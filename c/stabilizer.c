@@ -30,7 +30,7 @@ double randDouble(double min, double max)
     return min + (rand() / div);
 }
 
-void deepCopyState(struct StabilizerStates *dest, struct StabilizerStates *src){
+void deepCopyState(struct StabilizerState *dest, struct StabilizerState *src){
 	dest->n = src->n;
 	dest->k = src->k;
 	gsl_vector_memcpy(dest->h, src->h);
@@ -42,7 +42,7 @@ void deepCopyState(struct StabilizerStates *dest, struct StabilizerStates *src){
 }
 
 //helper to update D, J using equations 48, 49 on page 10		
-void updateDJ(struct StabilizerStates *state, gsl_matrix *R){
+void updateDJ(struct StabilizerState *state, gsl_matrix *R){
 	
 	//temporary variables for storing intermediary results
 	gsl_vector *tempVector, *tempVector1;
@@ -96,7 +96,7 @@ void updateDJ(struct StabilizerStates *state, gsl_matrix *R){
 }
 
 //helper to update Q, D using equations 51, 52 on page 10
-void updateQD(struct StabilizerStates *state, gsl_vector *y){
+void updateQD(struct StabilizerState *state, gsl_vector *y){
 	
 	
 	//temporary variables for storing intermediary results
@@ -225,7 +225,7 @@ void partialGamma(int *eps, int *p, int *m, int A){
 	}
 }
 
-void Wsigma(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_complex *ans, 
+void Wsigma(struct StabilizerState *state, int *eps, int *p, int *m, gsl_complex *ans, 
 	int exact, int sigma, int s, int *M, int Mlength, int *Dimers, int DimersLength){
 	
 	if(state->k == 0){
@@ -282,7 +282,7 @@ void Wsigma(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_comple
 //Helper required for InnerProduct and MeasurePauli.
 //Depends only on Q, D, J. Manipulates integers p, m, eps
 //to avoid rounding error then evaluates to a real number.
-void exponentialSum(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_complex *ans, int exact){
+void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl_complex *ans, int exact){
 
 	//define matrix R for later usage
 	gsl_matrix *R;
@@ -469,7 +469,7 @@ void exponentialSum(struct StabilizerStates *state, int *eps, int *p, int *m, gs
 //EMPTY == 0
 //SAME == 1
 //SUCCESS = 2
-int shrink(struct StabilizerStates *state, gsl_vector *xi, int alpha, int lazy){
+int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy){
 	//xi is of length n
 	
 	/*
@@ -612,7 +612,7 @@ int shrink(struct StabilizerStates *state, gsl_vector *xi, int alpha, int lazy){
 	return 2;
 }
 
-void innerProduct(struct StabilizerStates *state1, struct StabilizerStates *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact){
+void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact){
 	if(state1->n != state2->n){
 		printf("innerProduct: States do not have same dimension.");
 		return;
@@ -625,7 +625,7 @@ void innerProduct(struct StabilizerStates *state1, struct StabilizerStates *stat
 	tempVector1 = gsl_vector_alloc(state2->n);
 	
 	//K <- K_1, (also copy q_1)
-	struct StabilizerStates *state = (struct StabilizerStates *)malloc(sizeof(struct StabilizerStates));
+	struct StabilizerState *state = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
 	state->h = gsl_vector_alloc(state1->n);
 	state->D = gsl_vector_alloc(state1->n);
 	state->G = gsl_matrix_alloc(state1->n, state1->n);
@@ -677,7 +677,7 @@ void innerProduct(struct StabilizerStates *state1, struct StabilizerStates *stat
 		}
 	}
 	
-	struct StabilizerStates *state2temp = (struct StabilizerStates *)malloc(sizeof(struct StabilizerStates));
+	struct StabilizerState *state2temp = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
 	state2temp->h = gsl_vector_alloc(state2->n);
 	state2temp->D = gsl_vector_alloc(state2->n);
 	state2temp->G = gsl_matrix_alloc(state2->n, state2->n);
@@ -723,7 +723,7 @@ double logeta(int d, int n){
 	return (-d*(d+1)/2) + product;
 }
 
-void randomStabilizerState(struct StabilizerStates *state, int n){
+void randomStabilizerState(struct StabilizerState *state, int n){
 	//not using the dDists caching from python
 	
 	if(n<2){
@@ -851,7 +851,7 @@ void randomStabilizerState(struct StabilizerStates *state, int n){
 
 //Helper: if xi not in K, extend it to an affine space that does
 //Doesn't return anything, instead modifies state
-void extend(struct StabilizerStates *state, gsl_vector *xi){
+void extend(struct StabilizerState *state, gsl_vector *xi){
 	
 	gsl_vector *tempVector, *tempVector1;
 	tempVector = gsl_vector_alloc(state->n);
@@ -929,7 +929,7 @@ void extend(struct StabilizerStates *state, gsl_vector *xi){
 //Write a pauli as P = i^m * Z(zeta) * X(xi), m in Z_4
 //Returns the norm of the projected state Gamma = ||P_+ |K,q>||
 //If Gamma nonzero, projects the state to P_+|K,q>
-double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl_vector *xi){
+double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_vector *xi){
 	
 	//write zeta, xi in basis of K
 	gsl_vector *vecZeta, *vecXi, *xiPrime, *tempVector;

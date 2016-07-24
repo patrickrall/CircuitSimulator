@@ -12,7 +12,7 @@
 int mod(int a, int b);
 
 //define K from RandomStabilizerState algorithm (page 16)
-struct StabilizerStates {
+struct StabilizerState {
 	int n;
 	int k;
 	gsl_vector *h;		//in \mathbb{F}^n_2
@@ -25,16 +25,16 @@ struct StabilizerStates {
 	gsl_matrix *J;		//in {0,4}^{k\times k}, symmetric
 };
 
-void deepCopyState(struct StabilizerStates *dest, struct StabilizerStates *src);
+void deepCopyState(struct StabilizerState *dest, struct StabilizerState *src);
 
-void exponentialSum(struct StabilizerStates *state, int *eps, int *p, int *m, gsl_complex *ans, int exact);
+void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl_complex *ans, int exact);
 
-int shrink(struct StabilizerStates *state, gsl_vector *xi, int alpha, int lazy);
+int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy);
 
-void innerProduct(struct StabilizerStates *state1, struct StabilizerStates *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact);
+void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact);
 
-void randomStabilizerState(struct StabilizerStates *state, int n);
+void randomStabilizerState(struct StabilizerState *state, int n);
 
-void extend(struct StabilizerStates *state, gsl_vector *xi);
+void extend(struct StabilizerState *state, gsl_vector *xi);
 
-double measurePauli(struct StabilizerStates *state, int m, gsl_vector *zeta, gsl_vector *xi);
+double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_vector *xi);

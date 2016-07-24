@@ -90,8 +90,8 @@ def gadgetize(circuit, Mdict, y):
     # conjugate stabilizer generators:
     tpos = n
 
-    # from main import printProjector
-    # printProjector(([phases[0]], [xs[0]], [zs[0]]))
+    from main import printProjector
+    printProjector((phases, xs, zs))
     for line in reversed(circuit.splitlines()):
         if line == "": continue
 
@@ -132,7 +132,6 @@ def gadgetize(circuit, Mdict, y):
                 ph, xs[idxs[0]], zs[idxs[0]] = mapping[state]
                 phase = (phase + ph) % 4
             else:  # evaluate CNOT
-                phase = 0
                 top = ""
                 bot = ""
                 if xs[idxs[0]] == 1:
@@ -173,6 +172,7 @@ def gadgetize(circuit, Mdict, y):
             tpos += 1
 
         # printProjector(([phases[0]], [xs[0]], [zs[0]]))
+        # printProjector((phases, xs, zs))
         # test = input()
         # print("")
 

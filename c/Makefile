@@ -1,14 +1,12 @@
 C=gcc
-CFLAGS=-lgsl -lgslcblas -lm -std=gnu99
+CFLAGS=-lgsl -lgslcblas -lm -std=gnu99 -g
 LFLAGS=-I/usr/include -L/usr/lib 
 
-sample:
+sample: clean
 	$(C) $(LFLAGS) -c sample.c -o sample.o $(CFLAGS)
 	$(C) $(LFLAGS) -c stabilizer.c -o stabilizer.o $(CFLAGS)
 	$(C) $(LFLAGS) sample.o stabilizer.o -o sample $(CFLAGS)
 	rm *.o
-	./sample
-	rm sample
 
 stabtests: 
 	$(C) $(LFLAGS) -c stabtests.c -o stabtests.o $(CFLAGS)
@@ -19,4 +17,4 @@ stabtests:
 	rm stabtests
 
 clean:
-	rm *.o stabtests
+	rm *.o stabtests sample || echo "Already deleted."

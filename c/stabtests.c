@@ -70,7 +70,7 @@ void testFileExponentialSum(){
 
 	fr = fopen("stabilizerTests/exponentialSumTests.txt", "rt");
 	while(1){
-		struct StabilizerStates state;
+		struct StabilizerState state;
 		int eps, outEps, p, outP, m, outM;
 		gsl_complex ans;
 		
@@ -156,7 +156,7 @@ void testFileShrink(){
 	fr = fopen("stabilizerTests/shrinkTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerStates state;
+		struct StabilizerState state;
 		int alpha, outk, outQ, outStatus;
 		gsl_vector *xi, *outh, *outD;
 		gsl_matrix *outG, *outGbar, *outJ;
@@ -327,8 +327,8 @@ void testFileInnerProduct(){
 	fr = fopen("stabilizerTests/innerProductTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerStates state1;
-		struct StabilizerStates state2;
+		struct StabilizerState state1;
+		struct StabilizerState state2;
 		int eps, outEps, p, outP, m, outM;
 		gsl_complex ans;
 		
@@ -495,7 +495,7 @@ void testFileExtend(){
 	fr = fopen("stabilizerTests/extendTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerStates state;
+		struct StabilizerState state;
 		int outk;
 		gsl_vector *xi;
 		gsl_matrix *outG, *outGbar;
@@ -590,7 +590,7 @@ void testFileMeasurePauli(){
 	fr = fopen("stabilizerTests/measurePauliTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerStates state;
+		struct StabilizerState state;
 		int m, outk, outQ, outStatus;
 		double outResult;
 		gsl_vector *zeta, *xi, *outh, *outD;
