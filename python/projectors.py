@@ -77,9 +77,7 @@ def projectors(circ, measure, verbose=False, x=None, y=None):
 
         print("y:", "".join(y.astype(str).tolist()))
 
-    print("G:")
     G = circuit.gadgetize.gadgetize(circ, measure, y)
-    print("H:")
     H = circuit.gadgetize.gadgetize(circ, Mdict, y)
 
     return G, H, n, t  # also return n and t for convenience

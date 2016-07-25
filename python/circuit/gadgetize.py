@@ -90,8 +90,8 @@ def gadgetize(circuit, Mdict, y):
     # conjugate stabilizer generators:
     tpos = n
 
-    from main import printProjector
-    printProjector((phases, xs, zs))
+    # from main import printProjector
+    # printProjector((phases, xs, zs))
     for line in reversed(circuit.splitlines()):
         if line == "": continue
 
