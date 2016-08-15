@@ -663,11 +663,15 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	Rtemp = gsl_matrix_alloc(state->k+1, state2->k);
 	gsl_matrix_view Gk = gsl_matrix_submatrix(state->G, 0, 0, state->k, state->n);
 	gsl_matrix_view Gk2 = gsl_matrix_submatrix(state2->Gbar, 0, 0, state2->k, state2->n);
-	gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1, &Gk.matrix, &Gk2.matrix, 0, smallR);
-	for(i=0;i<state->k;i++){
-		gsl_matrix_get_row(smallRrow, smallR, i);
-		gsl_matrix_set_row(Rtemp, i, smallRrow);
-	}
+
+    if (state->k>0) {
+        gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1, &Gk.matrix, &Gk2.matrix, 0, smallR);
+        for(i=0;i<state->k;i++){
+            gsl_matrix_get_row(smallRrow, smallR, i);
+            gsl_matrix_set_row(Rtemp, i, smallRrow);
+        }
+    }
+
 	//TODO: more efficient modulo of a matrix..
 	R = gsl_matrix_alloc(state->n, state->n);
 	gsl_matrix_set_zero(R);	//maybe identity?
@@ -726,8 +730,8 @@ double logeta(int d, int n){
 void randomStabilizerState(struct StabilizerState *state, int n){
 	//not using the dDists caching from python
 	
-	if(n<2){
-		printf("randomStabilizerState: Vector space must have positive nonzero nontrivial dimension.");
+	if(n<1){
+		printf("randomStabilizerState: Vector space must have positive nonzero dimension.");
 	}
 	
 	int i, j, d;
@@ -778,7 +782,7 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		gsl_matrix *U, *V;
 		gsl_vector *S;
 		X = gsl_matrix_alloc(n, d); 
-		U = gsl_matrix_alloc(n, d);
+		U = gsl_matrix_alloc(n, n);
 		V = gsl_matrix_alloc(n, n);  
 		S = gsl_vector_alloc(n); 
 		gsl_vector *work;
@@ -789,15 +793,20 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		//need those dimensions to make SVD work since n>=d
 		while(1){
 			for(i=0;i<n;i++){
-				for(j=0;j<d;j++){
-					gsl_matrix_set(X, i, j, rand() % 2);
+				for(j=0;j<n;j++){
+                    if (j < d) {
+                        double toSet = rand() % 2;
+	    				gsl_matrix_set(X, i, j, toSet);
+	    				gsl_matrix_set(U, i, j, toSet);
+                    } else {
+	    				gsl_matrix_set(U, i, j, 0);
+                    }
 				}
 			}
 			
 			//rank of a matrix is the number of non-zero values in its singular value decomposition
+            gsl_linalg_SV_decomp(U, V, S, work);
 			rank = 0;
-			gsl_matrix_memcpy(U, X);
-			gsl_linalg_SV_decomp(U, V, S, work);
 			for(i=0;i<n;i++){
 				if(fabs(gsl_vector_get(S, i)) > 0.00001){
 					rank++;
@@ -809,14 +818,20 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		}
 		gsl_matrix_transpose(X);
 		
-		//gsl_matrix_free(U);
-		//gsl_matrix_free(V);
-		//gsl_vector_free(S);
-		//gsl_vector_free(work);
+		gsl_matrix_free(U);
+		gsl_matrix_free(V);
+		gsl_vector_free(S);
+		gsl_vector_free(work);
 	}
 	
 	state->n = n;
 	state->k = k;
+    state->h = gsl_vector_alloc(n);
+    state->G = gsl_matrix_alloc(n, n);
+    gsl_matrix_set_identity(state->G);
+    state->Gbar = gsl_matrix_alloc(n, n);
+    gsl_matrix_set_identity(state->Gbar);
+
 	
 	gsl_vector *tempVector;
 	tempVector = gsl_vector_alloc(n);
@@ -834,12 +849,12 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		gsl_vector_set(state->h, i, rand() % 2);
 	}
 	state->Q = rand() % 8;
-	state->D = gsl_vector_alloc(k);
+	state->D = gsl_vector_alloc(n);
 	for(int i=0;i<k;i++){
 		gsl_vector_set(state->D, i, 2*(rand() % 4));
 	}
 	
-	state->J = gsl_matrix_alloc(k, k);
+	state->J = gsl_matrix_alloc(n, n);
 	for(i=0;i<k;i++){
 		gsl_matrix_set(state->J, i, i, mod(2*(int)(gsl_vector_get(state->D, i)), 8));
 		for(j=0;j<i;j++){
