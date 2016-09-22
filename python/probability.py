@@ -155,7 +155,7 @@ def probability(circ, measure, config):
 
             return dat
 
-        p = Popen(config["cpath"], stdin=PIPE, stdout=PIPE, bufsize=1)
+        p = Popen(config["cpath"], stdin=PIPE, stdout=PIPE, stderr=PIPE, bufsize=1)
 
         indat = b""
 
@@ -187,7 +187,9 @@ def probability(circ, measure, config):
         print("|| Gprime |H^t> ||^2 ~= ", numerator/Nsamples)
         print("|| Hprime |H^t> ||^2 ~= ", denominator/Nsamples)
 
-    return 2**(v-u) * (numerator/denominator)
+    prob = 2**(v-u) * (numerator/denominator)
+    if (prob > 1): prob = 1  # no probabilities greater than 1
+    return prob
 
 
 # sample from a set of qubits

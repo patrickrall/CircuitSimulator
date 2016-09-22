@@ -90,9 +90,9 @@ void updateDJ(struct StabilizerState *state, gsl_matrix *R){
 	}
 	
 	//free memory
-	//gsl_vector_free(tempVector);
-	//sl_vector_free(tempVector1);
-	//gsl_matrix_free(tempMatrix);
+	gsl_vector_free(tempVector);
+	gsl_vector_free(tempVector1);
+	gsl_matrix_free(tempMatrix);
 }
 
 //helper to update Q, D using equations 51, 52 on page 10
@@ -126,7 +126,7 @@ void updateQD(struct StabilizerState *state, gsl_vector *y){
 	}
 	
 	//free memory
-	//gsl_vector_free(tempVector);
+	gsl_vector_free(tempVector);
 }
 
 //helper that evaluates the expression in the comment on page 12
@@ -134,7 +134,9 @@ void evalW(gsl_complex *ans, int eps, int p, int m){
 	//imaginary unit
 	gsl_complex eye = gsl_complex_rect(0,1);
 	
-	*ans = gsl_complex_exp(gsl_complex_mul_real(eye, M_PI*m/4));
+	*ans = gsl_complex_mul_real(eye, M_PI*m/4);
+	*ans = gsl_complex_exp(*ans);
+	//*ans = gsl_complex_exp(gsl_complex_mul_real(eye, M_PI*m/4));
 	*ans = gsl_complex_mul_real(*ans, eps*pow(2,p/2.));
 }
 
@@ -190,6 +192,8 @@ void Gamma(int *eps, int *p, int *m, int A, int B){
 			*m = 7;
 		}
 	}
+
+    gsl_vector_complex_free(lookup);
 }
 
 //Evaluates 1 + e^{A*i*pi/4}
@@ -405,10 +409,18 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
 			}
 		}
 	}
-		
+
+    gsl_matrix_free(R);
+    free(K);
+    free(tempE);
+    free(E);
+    free(S);
+
 	if(Slength == 0){
 		//Compute W(K,q) from Eq. 63
 		Wsigma(state, eps, p, m, ans, exact, 0, 0, M, Mlength, Dimers, DimersLength);
+        free(Dimers);
+        free(M);
 		return;
 	}
 	else{
@@ -419,12 +431,17 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
 			gsl_complex tempAns = gsl_complex_rect(GSL_REAL(*ans), GSL_IMAG(*ans));
 			Wsigma(state, eps, p, m, ans, exact, 1, *(S), M, Mlength, Dimers, DimersLength);
 			*ans = gsl_complex_add(*ans, tempAns);
+            free(Dimers);
+            free(M);
+
 			return;
 		}
 		else{
 			int eps0, p0, m0, eps1, p1, m1;
 			Wsigma(state, &eps0, &p0, &m0, ans, exact, 0, *(S), M, Mlength, Dimers, DimersLength);
 			Wsigma(state, &eps1, &p1, &m1, ans, exact, 1, *(S), M, Mlength, Dimers, DimersLength);
+            free(Dimers);
+            free(M);
 			
 			if(eps0 == 0){
 				*eps = eps1;
@@ -497,9 +514,17 @@ int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy){
 	
 	if(Slength == 0){
 		if(beta == 1){
+            gsl_vector_free(tempVector);
+            gsl_vector_free(tempVector1);
+            gsl_matrix_free(R);
+            free(S);
 			return 0;
 		}
 		if(beta == 0){
+            gsl_vector_free(tempVector);
+            gsl_vector_free(tempVector1);
+            gsl_matrix_free(R);
+            free(S);
 			return 1;
 		}
 	}
@@ -569,6 +594,7 @@ int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy){
 		y = gsl_vector_calloc(state->n);
 		gsl_vector_set(y, state->k-1, beta);
 		updateQD(state, y);
+        gsl_vector_free(y);
 		
 		//remove last row and column from J
 		//gsl_matrix_view newJ = gsl_matrix_submatrix(state->J, 0, 0, state->k-1, state->k-1);
@@ -587,6 +613,10 @@ int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy){
 		//state->D = &newD.vector;)
 	}
 	
+    gsl_vector_free(tempVector);
+    gsl_vector_free(tempVector1);
+    gsl_matrix_free(R);
+    free(S);
 	state->k--;
 	
 	return 2;
@@ -671,6 +701,13 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	
 	updateQD(state2temp, y);
 	updateDJ(state2temp, R);
+    gsl_vector_free(y);
+    gsl_matrix_free(R);
+    gsl_matrix_free(Rtemp);
+    gsl_matrix_free(smallR);
+    gsl_vector_free(smallRrow);
+    gsl_vector_free(tempVector);
+    gsl_vector_free(tempVector1);
 	
 	//now q, q2 are defined in the same basis
 	state->Q = state->Q - mod(state2temp->Q, 8);
@@ -684,12 +721,13 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	if(exact == 0){
 		exponentialSum(state, eps, p, m, ans, 0);
 		*ans = gsl_complex_mul_real(*ans, pow(2, -((double)state1->k + (double)state2temp->k)/2));
-		return;
 	}
 	else{
 		exponentialSum(state, eps, p, m, ans, 1);
 		*p -= state1->k + state2temp->k;
 	}
+    freeStabilizerState(state);
+    freeStabilizerState(state2temp);
 }
 
 //helper to compute distribution given by equation 79 on page 15
@@ -752,7 +790,10 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		}
 	}
 	int k = n - d;
-	
+
+    free(dist);
+    free(cumulative);
+
 	//time_t t;
 	//srand((unsigned) time(&t));
 	
@@ -823,9 +864,10 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		shrink(state, tempVector, 0, 1);
 	}
 	state->k = k;
+    gsl_vector_free(tempVector);
+    if (d > 0) gsl_matrix_free(X);
 	
 	//now K = ker(X) and is in standard form
-	state->h = gsl_vector_alloc(n);
 	for(int i=0;i<n;i++){
 		gsl_vector_set(state->h, i, rand() % 2);
 	}
@@ -877,6 +919,10 @@ void extend(struct StabilizerState *state, gsl_vector *xi){
 	}
 	
 	if(Tlength == 0){
+        gsl_vector_free(tempVector);
+        gsl_vector_free(tempVector1);
+        free(S);
+        free(T);
 		return;	//xi in L(K)
 	}
 	
@@ -920,6 +966,12 @@ void extend(struct StabilizerState *state, gsl_vector *xi){
 	gsl_matrix_swap_rows(state->Gbar, i, state->k);
 	
 	state->k++;
+
+    gsl_vector_free(tempVector);
+    gsl_vector_free(tempVector1);
+    free(S);
+    free(T);
+    free(newS);
 }
 
 //Write a pauli as P = i^m * Z(zeta) * X(xi), m in Z_4
@@ -937,6 +989,8 @@ double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_
 	gsl_vector_set_zero(xiPrime);
 	tempVector = gsl_vector_alloc(state->n);
 	double tempInt;
+
+
 	
 	for(int a=0;a<state->k;a++){
 		gsl_matrix_get_row(tempVector, state->G, a);
@@ -1008,6 +1062,14 @@ double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_
 			int alpha = mod(omegaPrime + (int)tempInt, 2);
 			
 			int eps = shrink(state, gamma, alpha, 0);
+            
+            gsl_vector_free(vecZeta);
+            gsl_vector_free(vecXi);
+            gsl_vector_free(xiPrime);
+            gsl_vector_free(tempVector);
+            gsl_vector_free(eta);
+            gsl_vector_free(gamma);
+
 			switch(eps){
 				case 0:
 					return 0;
@@ -1044,6 +1106,13 @@ double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_
 				}
 			}
 
+            gsl_vector_free(vecZeta);
+            gsl_vector_free(vecXi);
+            gsl_vector_free(xiPrime);
+            gsl_vector_free(tempVector);
+            gsl_vector_free(eta);
+            gsl_matrix_free(etaMatrix);
+            gsl_matrix_free(tempMatrix);
 			return pow(2, -0.5);
 		}
 	}
@@ -1064,7 +1133,26 @@ double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_
 	gsl_matrix_set_row(state->J, state->k-1, vecZeta);
 	gsl_matrix_set(state->J, state->k-1, state->k-1, mod(4*m, 8));
 
+
+    gsl_vector_free(vecZeta);
+    gsl_vector_free(vecXi);
+    gsl_vector_free(xiPrime);
+    gsl_vector_free(tempVector);
+    gsl_vector_free(eta);
 	return pow(2, -0.5);
 }
 
+//void allocStabilizerState(n, k) {
+//    return NULL;
+//}
 
+void freeStabilizerState(struct StabilizerState *state) {
+    gsl_vector_free(state->h);
+    gsl_matrix_free(state->G);
+    gsl_matrix_free(state->Gbar);
+
+    gsl_vector_free(state->D);
+    gsl_matrix_free(state->J);
+
+    free(state);
+}

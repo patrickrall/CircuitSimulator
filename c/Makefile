@@ -1,5 +1,5 @@
 C=gcc
-CFLAGS=-lgsl -lgslcblas -lm -std=gnu99 -g
+CFLAGS=-lgsl -lgslcblas -lm -std=gnu99 -g -lpthread
 LFLAGS=-I/usr/include -L/usr/lib 
 
 sample: clean

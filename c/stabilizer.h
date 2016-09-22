@@ -38,3 +38,5 @@ void randomStabilizerState(struct StabilizerState *state, int n);
 void extend(struct StabilizerState *state, gsl_vector *xi);
 
 double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_vector *xi);
+
+void freeStabilizerState(struct StabilizerState *state);

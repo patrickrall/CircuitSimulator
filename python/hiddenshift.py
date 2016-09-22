@@ -7,6 +7,7 @@
 from probability import probability
 from circuit.compile import compileRawCircuit, removeComments, parseReference
 import numpy as np
+import os
 from datetime import datetime
 
 # ######## CONFIG ######## #
@@ -152,6 +153,8 @@ config = {
     "fidelity": True,
     "y": None,
     "x": None,
+    "python": False,
+    "cpath": os.getcwd() + "/../c/sample",
 }
 
 

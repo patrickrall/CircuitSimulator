@@ -10,6 +10,7 @@
 #include <gsl/gsl_complex_math.h>
 #include <gsl/gsl_linalg.h>
 #include "stabilizer.h"
+#include <pthread.h>
 
 #include <gsl/gsl_errno.h>
 
@@ -66,6 +67,9 @@ void printProjector(struct Projector *P) {
 
         char* lookup[4] = {" +", " i", " -", "-i"};
         printf("%s%s\n", lookup[tmpphase], stab);
+
+        gsl_vector_free(xs);
+        gsl_vector_free(zs);
     }
 }
 
@@ -119,18 +123,19 @@ int main(int argc, char* argv[]){
         G = (struct Projector *)malloc(sizeof(struct Projector));
         H = (struct Projector *)malloc(sizeof(struct Projector));
        
-        /*
+        
         G->Nstabs = 3;
         H->Nstabs = 2;
         G->Nqubits = 3;
         H->Nqubits = 3;
-        */
+        
 
+        /*
         G->Nstabs = 1;
         H->Nstabs = 0;
         G->Nqubits = 1;
         H->Nqubits = 1;
-
+        */
             
         G->phases = gsl_vector_alloc(G->Nstabs);
         G->xs = gsl_matrix_alloc(G->Nstabs, G->Nqubits);
@@ -143,8 +148,8 @@ int main(int argc, char* argv[]){
         int v;
         int idx = 0;
 
-        //int Gvals[] = {1,1,1,0,1,0,1,2,0,1,1,0,0,1,1,0,0,1,1,1,0};
-        int Gvals[] = {0, 1};
+        int Gvals[] = {1,1,1,0,1,0,1,2,0,1,1,0,0,1,1,0,0,1,1,1,0};
+        // int Gvals[] = {0, 1};
         for (int i = 0; i < G->Nstabs; i++) {
             v = Gvals[idx++];
             gsl_vector_set(G->phases, i, (double)v);
@@ -156,8 +161,8 @@ int main(int argc, char* argv[]){
             }
         }
 
-        //int Hvals[] = {1,1,1,0,1,0,1,1,0,0,1,1,1,0};
-        int Hvals[] = {};
+        int Hvals[] = {1,1,1,0,1,0,1,1,0,0,1,1,1,0};
+        //int Hvals[] = {};
         idx = 0;
         for (int i = 0; i < H->Nstabs; i++) {
             v = Hvals[idx++];
@@ -200,7 +205,7 @@ int main(int argc, char* argv[]){
         printf("Using exact decomposition of |H^t>: 2^%d\n", t);
     }
     if (exact == 0) {
-        printf("Stabilizer rank of |L>: 2^%d", k);
+        printf("Stabilizer rank of |L>: 2^%d\n", k);
     }
 
     /************* Calculate result *************/
@@ -237,6 +242,9 @@ int main(int argc, char* argv[]){
         printf("%f\n", numerator/Nsamples);
         printf("%f\n", denominator/Nsamples);
     }
+
+    free(G);
+    free(H);
     return 0;
 }
 
@@ -290,7 +298,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 	}
 	
 	//can achieve k = t/2 by pairs of stabilizer states
-	if(exact || (*k > t/2 && !forceK)){
+	if(*exact || (*k > t/2 && !forceK)){
         *exact = 1;
 		*norm = pow(2, floor((float)t/2)/2);
 		if (t % 2) *norm *= 2*v;
@@ -391,14 +399,14 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 			innerProduct = pow(2,*k) * pow(v, 2*t) / Z_L;
 			
 			if(forceK){
-				printf("\nInner product <H^t|L>: %lf", innerProduct);
+				printf("\nInner product <H^t|L>: %lf\n", innerProduct);
 				break;
 			}
 			else if(innerProduct < 1-fidbound){
-				printf("\nInner product <H^t|L>: %lf - Not good enough!", innerProduct);
+				printf("\nInner product <H^t|L>: %lf - Not good enough!\n", innerProduct);
 			}
 			else{
-				printf("\nInner product <H^t|L>: %lf", innerProduct);
+				printf("\nInner product <H^t|L>: %lf\n", innerProduct);
 			}
 		}
 		else{
@@ -454,6 +462,7 @@ void evalLcomponent(gsl_complex *innerProd, unsigned int i, gsl_matrix *L, struc
 	zeroVector = gsl_vector_alloc(t);
 	gsl_vector_set_zero(bitstring);
 	gsl_vector_set_zero(zeroVector);
+
 	
 	int j=0;
 	while(Lbits[j] != '\0'){
@@ -496,8 +505,13 @@ void evalLcomponent(gsl_complex *innerProd, unsigned int i, gsl_matrix *L, struc
 		}
 	}
 	
-	int *eps, *p, *m;
-	innerProduct(theta, phi, eps, p, m, innerProd, 0);
+	int eps, p, m;
+	innerProduct(theta, phi, &eps, &p, &m, innerProd, 0);
+    freeStabilizerState(phi);
+
+    gsl_vector_free(bitstring);
+    gsl_vector_free(tempVector);
+    gsl_vector_free(zeroVector);
 }
 
 //Inner product for some state in |H^t> using pairwise decomposition
@@ -575,7 +589,41 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 	int p;
 	int m;
 	innerProduct(theta, phi, &eps, &p, &m, innerProd, 0);
+    freeStabilizerState(phi);
+    gsl_vector_free(tempVector);
+    gsl_vector_free(zeroVector);
 }
+
+typedef struct ThreadData {
+      gsl_complex *total;
+      int i;
+      gsl_matrix* L;
+      int exact;
+      struct StabilizerState* theta;
+      int k;
+      int t;
+      pthread_mutex_t *mutex;
+} ThreadData;
+
+void *samplethread(void *args) {
+    struct ThreadData *data = (struct ThreadData*)args;
+
+    gsl_complex innerProd;
+
+    if (data->exact) {
+        evalHcomponent(&innerProd, data->i, data->theta, data->t);
+    } else {
+        evalLcomponent(&innerProd, data->i, data->L, data->theta, data->k, data->t);
+    }
+
+    pthread_mutex_lock(data->mutex);
+    *data->total = gsl_complex_add(*data->total, innerProd);
+    pthread_mutex_unlock(data->mutex);
+
+    free(args);
+    return NULL;
+}
+
 
 
 double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short exact, const short parallel){
@@ -596,15 +644,11 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
         return sum/(1 + (double)P->Nstabs);
     }
 
-    //srand(time(NULL)); // set random seed
-    //time_t ti;
-	//srand((unsigned) time(&ti));
+    
 
     // Sample random stabilizer state
 	struct StabilizerState *theta = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
     randomStabilizerState(theta, t);
-
-
 
     // project state onto P
     double projfactor = 1;
@@ -620,6 +664,9 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
         projfactor *= res;
 
         if (res == 0) {
+            freeStabilizerState(theta);
+            gsl_vector_free(zeta);
+            gsl_vector_free(xi);
             return 0;
         }
     } 
@@ -627,19 +674,50 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
     gsl_complex total = gsl_complex_rect(0,0);
     gsl_complex innerProd;
 
+    struct ThreadData *data;
+    unsigned int size;
+
     if (exact) {
-        unsigned int size = pow(2, ceil((double)t / 2));
-        for (unsigned int i = 0; i < size; i++) {
-            evalHcomponent(&innerProd, i, theta, t);
-            total = gsl_complex_add(total, innerProd);
-        }
+        size = pow(2, ceil((double)t / 2));
     } else {
-        unsigned int size = pow(2, k);
-        for (unsigned int i = 0; i < size; i++) {
-            evalLcomponent(&innerProd, i, L, theta, k, t);
-            total = gsl_complex_add(total, innerProd);
+        size = pow(2, k);
+    }
+    
+    pthread_mutex_t total_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+    int maxthreads = 10; // maximum number of parallel threads
+    pthread_t *tids = (pthread_t*)malloc(sizeof(pthread_t)*maxthreads);
+    int j = 0;
+
+    for (unsigned int i = 0; i < size; i++) {
+        data = (struct ThreadData *)malloc(sizeof(struct ThreadData));
+        data->total = &total;
+        data->i = i;
+        data->k = k;
+        data->t = t;
+        data->exact = exact;
+        data->theta = theta;
+        data->L = L;
+        data->mutex = &total_mutex;
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, samplethread, data); 
+        tids[j] = tid;
+
+        j++;
+        if (j == maxthreads) {
+            for (int k = 0; k < maxthreads; k++) {
+                pthread_join(tids[k], NULL);
+            }
+            j = 0;
         }
     }
+    for (int k = 0; k < j; k++) {
+        pthread_join(tids[k], NULL);
+    }
 
+    freeStabilizerState(theta);
+    gsl_vector_free(zeta);
+    gsl_vector_free(xi);
     return pow(2, t) * gsl_complex_abs2(gsl_complex_mul_real(total, projfactor));
 }
