@@ -107,7 +107,6 @@ def evalLcomponent(args):
 def evalHcomponent(args):
     (i, _, theta, t) = args  # unpack arguments (easier for parallel code)
 
-    # import pdb; pdb.set_trace()
     size = int(np.ceil(t/2))
     odd = t % 2 == 1
 
@@ -170,7 +169,7 @@ def sampleProjector(args):
         return sum(generators)/len(generators)
 
     # set unique seed for this calculation
-    np.random.seed((seed) % 4294967296)
+    # np.random.seed((seed) % 4294967296)
 
     # sample random theta
     theta = StabilizerState.randomStabilizerState(t)
@@ -181,7 +180,7 @@ def sampleProjector(args):
         res = theta.measurePauli(phases[g], zs[g], xs[g])
         projfactor *= res
 
-        if res == 0: return 0  # theta annihilated by P
+        # if res == 0: return 0  # theta annihilated by P
 
     if L is None:  # use exact decomp into pairs of stabilizer states
         func = evalHcomponent

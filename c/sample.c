@@ -73,39 +73,40 @@ void printProjector(struct Projector *P) {
 int main(int argc, char* argv[]){
     gsl_set_error_handler_off();
 
-    int debug = 1; 
+    int debug = 0; 
+    int print = 0;
 
     /************* Parse args for decompose *************/
     int t;
     if (!debug) scanf("%d", &t);
     // else t = 3;
      else t = 1;
-    printf("t: %d\n", t);
+    if (print) printf("t: %d\n", t);
 
     int k;
     if (!debug) scanf("%d", &k);  
     else k = 0;
-    printf("k: %d\n", k);
+    if (print) printf("k: %d\n", k);
 
     double fidbound;
     if (!debug) scanf("%lf", &fidbound);
     else fidbound = 0.001;
-    printf("fidbound: %f\n", fidbound);
+    if (print) printf("fidbound: %f\n", fidbound);
 
     short exact;
     if (!debug) scanf("%d", &exact); 
-    else exact = 0;
-    printf("exact: %d\n", exact);
+    else exact = 1;
+    if (print) printf("exact: %d\n", exact);
 
     short rank;
     if (!debug) scanf("%d", &rank);
     else rank = 1;
-    printf("rank: %d\n", rank);
+    if (print) printf("rank: %d\n", rank);
 
     short fidelity;
     if (!debug) scanf("%d", &fidelity); 
     else fidelity = 1;
-    printf("fidelity: %d\n", fidelity);
+    if (print) printf("fidelity: %d\n", fidelity);
 
     /************* Parse args for main proc *************/
 
@@ -169,35 +170,36 @@ int main(int argc, char* argv[]){
             }
         }
     }
-    printf("Proj: G\n");
-    printProjector(G);
-    printf("Proj: H\n");
-    printProjector(H);
+    if (print) printf("Proj: G\n");
+    if (print) printProjector(G);
+    if (print) printf("Proj: H\n");
+    if (print) printProjector(H);
 
     int Nsamples;
     if (!debug) scanf("%d", &Nsamples);
-    else Nsamples = 10;
-    printf("Nsamples: %d\n", Nsamples);
+    else Nsamples = 5000;
+    if (print) printf("Nsamples: %d\n", Nsamples);
 
     int parallel;
     if (!debug) scanf("%d", &parallel); 
     else parallel = 0; // parallelism not implemented yet
-    printf("parallel: %d\n", parallel);
+    if (print) printf("parallel: %d\n", parallel);
     
-	printf("Finished reading input.\n");
+	if (print) printf("Finished reading input.\n");
 
     /************* Get L, using decompose *************/
-	
+
     srand(time(NULL)); // set random seed
+    //srand(0);
 
     gsl_matrix *L;
     double Lnorm;
     decompose(L, &Lnorm, t, &k, fidbound, &exact, rank, fidelity);
 
-    if (debug == 1 && exact == 1) {
+    if (exact == 1) {
         printf("Using exact decomposition of |H^t>: 2^%d\n", t);
     }
-    if (debug == 1 && exact == 0) {
+    if (exact == 0) {
         printf("Stabilizer rank of |L>: 2^%d", k);
     }
 
@@ -214,7 +216,7 @@ int main(int argc, char* argv[]){
             numerator += sampleProjector(G, L, k, exact, 0);
         }
     }
-    printf("Calculated G\n");
+    if (print) printf("Calculated G\n");
 
     // calcalate || Hprime |L> ||^2
     if (Lnorm > 0 && (H->Nqubits == 0 || H->Nstabs == 0)) {
@@ -224,7 +226,7 @@ int main(int argc, char* argv[]){
             denominator += sampleProjector(H, L, k, exact, 0);
         }
     }
-    printf("Calculated H\n");
+    if (print) printf("Calculated H\n");
 
     if (debug == 1) {
         printf("|| Gprime |H^t> ||^2 ~= %f\n", numerator/Nsamples);
@@ -418,7 +420,7 @@ static char *binrep (unsigned int val, char *buff, int sz) {
 
     /* Special case for zero to ensure some output. */
     if (val == 0) {
-        for (int i; i<sz; i++) *pbuff++ = '0';
+        for (int i=0; i<sz; i++) *pbuff++ = '0';
         *pbuff = '\0';
         return buff;
     }
@@ -520,14 +522,16 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 	gsl_matrix_set_identity(phi->Gbar);
 	phi->J = gsl_matrix_alloc(phi->n, phi->n);
 	gsl_matrix_set_zero(phi->J);
-	
+
+
 	for(int j=0;j<size;j++){
 		if(bits[j] == '0' && !(size%2 && j==size-1)){
 			gsl_matrix_set(phi->J, j*2+1, j*2, 4);
 			gsl_matrix_set(phi->J, j*2, j*2+1, 4);
 		}
 	}
-	
+
+
 	gsl_vector *tempVector, *zeroVector;
 	tempVector = gsl_vector_alloc(t);
 	zeroVector = gsl_vector_alloc(t);
@@ -541,6 +545,7 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 			gsl_vector_set(tempVector, t-1, 1);
 			
 			//last qubit: |H> = (1/2v)(|0> + |+>)
+            //printf("In: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", phi->k, (int)gsl_vector_get(phi->h, 0) ,(int)gsl_matrix_get(phi->G, 0, 0), (int)gsl_matrix_get(phi->Gbar, 0, 0), phi->Q, (int)gsl_vector_get(phi->D, 0), (int)gsl_matrix_get(phi->J, 0, 0));
 			if(bits[j] == '0'){
 				measurePauli(phi, 0, tempVector, zeroVector);	//|0>, measure Z
 			}
@@ -557,11 +562,14 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 		
 		gsl_vector_set(tempVector, j*2+1, 1);
 		gsl_vector_set(tempVector, j*2, 1);
-		
+	
 		measurePauli(phi, 0, zeroVector, tempVector);	//measure XX
 		measurePauli(phi, 0, tempVector, zeroVector);	//measure ZZ
 	}
 	
+    //printf("Phi: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", phi->k, (int)gsl_vector_get(phi->h, 0) ,(int)gsl_matrix_get(phi->G, 0, 0), (int)gsl_matrix_get(phi->Gbar, 0, 0), phi->Q, (int)gsl_vector_get(phi->D, 0), (int)gsl_matrix_get(phi->J, 0, 0));
+    //printf("Theta: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", theta->k, (int)gsl_vector_get(theta->h, 0) ,(int)gsl_matrix_get(theta->G, 0, 0), (int)gsl_matrix_get(theta->Gbar, 0, 0), theta->Q, (int)gsl_vector_get(theta->D, 0), (int)gsl_matrix_get(theta->J, 0, 0));
+
 	// int *eps, *p, *m;
 	int eps;
 	int p;
@@ -588,11 +596,15 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
         return sum/(1 + (double)P->Nstabs);
     }
 
-    srand(time(NULL)); // set random seed
+    //srand(time(NULL)); // set random seed
+    //time_t ti;
+	//srand((unsigned) time(&ti));
 
     // Sample random stabilizer state
 	struct StabilizerState *theta = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
     randomStabilizerState(theta, t);
+
+
 
     // project state onto P
     double projfactor = 1;
@@ -608,11 +620,9 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
         projfactor *= res;
 
         if (res == 0) {
-            printf("Out (proj): 0\n");
             return 0;
         }
     } 
-    printf("Projfactor: %f\n", projfactor*projfactor);
 
     gsl_complex total = gsl_complex_rect(0,0);
     gsl_complex innerProd;
@@ -631,7 +641,5 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
         }
     }
 
-    printf("Total: %f\n", gsl_complex_abs2(total));
-    printf("Out: %f\n\n", pow(2, t) * gsl_complex_abs2(gsl_complex_mul_real(total, projfactor)));
     return pow(2, t) * gsl_complex_abs2(gsl_complex_mul_real(total, projfactor));
 }

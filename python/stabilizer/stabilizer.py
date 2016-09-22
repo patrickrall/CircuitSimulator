@@ -369,7 +369,7 @@ class StabilizerState:
 
         # sample d from distribution
         cumulative = np.cumsum(cls.dDists[n])
-        sample = np.round(1-np.random.random(), 5)  # sample from (0.0, 1.0]
+        sample = 1-np.random.random()  # sample from (0.0, 1.0]
 
         for d in range(n+1):
             if sample <= cumulative[d]:

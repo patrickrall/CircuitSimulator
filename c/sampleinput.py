@@ -1,9 +1,5 @@
 from subprocess import PIPE, Popen
 import os
-import sys
-from threading import Thread
-from queue import Queue, Empty
-import time
 
 
 def printProjector(projector):
@@ -32,21 +28,24 @@ def printProjector(projector):
         print("Projector is empty.")
 
 
-def send(p, s):
-    print(s)
-    p.stdin.write((str(s) + "\n").encode())
+def send(s):
+    return (str(s) + "\n").encode()
 
 
-def writeProjector(p, projector):
+def writeProjector(projector):
     ph, xs, zs = projector
 
-    send(p, len(ph))  # Nstabs
-    send(p, len(xs[0]))  # Nqubits
+    dat = b""
+
+    dat += send(len(ph))  # Nstabs
+    dat += send(len(xs[0]))  # Nqubits
     for i in range(len(ph)):
-        send(p, ph[i])
+        dat += send(ph[i])
         for j in range(len(xs[i])):
-            send(p, xs[i][j])
-            send(p, zs[i][j])
+            dat += send(xs[i][j])
+            dat += send(zs[i][j])
+
+    return dat
 
 
 Gph = [1, 2, 1]
@@ -59,64 +58,23 @@ Hxs = [[1, 0, 0], [0, 1, 1]]
 Hzs = [[1, 1, 1], [0, 1, 0]]
 H = (Hph, Hxs, Hzs)
 
+p = Popen(os.getcwd()+"/sample", stdin=PIPE, stdout=PIPE, bufsize=1)
 
-def enqueue_output(p, queue):
-    data = p.stdout.read(1).decode()
-    while data != "":
-        queue.put(data)
-        p.stdout.flush()
-        data = p.stdout.readline(1).decode()
-    p.communicate()
+indat = b""
 
-# p = Popen(os.getcwd()+"/sample", stdin=PIPE, stdout=PIPE, bufsize=1)
-p = Popen("gdb "+os.getcwd()+"/sample", shell=True, stdin=PIPE, stdout=PIPE, bufsize=1)
-q = Queue()
-t = Thread(target=enqueue_output, args=(p, q))
-t.daemon = True
-t.start()
+indat += send(len(Gxs[0]))  # t
+indat += send(0)  # k
+indat += send(0.001)  # fidbound
+indat += send(0)  # exact
+indat += send(1)  # rank
+indat += send(0)  # fidelity
 
-time.sleep(0.1)
+indat += writeProjector(G)
+indat += writeProjector(H)
 
-p.stdout.flush()
-while True:
-    try: line = q.get_nowait()
-    except Empty: break
-    else:
-        sys.stdout.write(line)
+indat += send(1000)  # Nsamples
+indat += send(0)  # parallel
 
-while True:
-    sys.stdout.write("py: ")
-    line = input()
 
-    if line == "make":
-        sys.stdout.write("Python: Don't do that\n")
-        send(p, "")  # t
-    elif line == "run":
-        time.sleep(0.1)
-        send(p, "run")  # t
-        send(p, len(Gxs[0]))  # t
-        send(p, 0)  # k
-        send(p, 0.001)  # fidbound
-        send(p, 0)  # exact
-        send(p, 1)  # rank
-        send(p, 0)  # fidelity
-
-        writeProjector(p, G)
-        writeProjector(p, H)
-
-        send(p, 1000)  # Nsamples
-        send(p, 0)  # parallel
-    else:
-        send(p, line)
-
-    p.stdin.flush()
-    time.sleep(0.1)
-
-    p.stdout.flush()
-    while True:
-        try: line = q.get_nowait()
-        except Empty: break
-        else:
-            sys.stdout.write(line)
-
-print(p.communicate()[0].decode())
+out = p.communicate(input=indat)
+print(out[0].decode())

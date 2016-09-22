@@ -4,14 +4,14 @@
 # as described in appendix F.
 #
 
-from main import probability
+from probability import probability
 from circuit.compile import compileRawCircuit, removeComments, parseReference
 import numpy as np
 from datetime import datetime
 
 # ######## CONFIG ######## #
 n = 40  # length of shift string
-toff = 5  # number of toffoli's per O_f
+toff = 2  # number of toffoli's per O_f
 randcliff = 200  # number of random Cliffords in between CCZ's
 
 # probability algorithm precision parameters

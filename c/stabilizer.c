@@ -23,8 +23,8 @@ int mod(int a, int b)
 //helper to generate a random double in a range
 double randDouble(double min, double max) 
 {
-	time_t t;
-	srand((unsigned) time(&t));
+	//time_t t;
+	//srand((unsigned) time(&t));
     double range = (max - min); 
     double div = RAND_MAX / range;
     return min + (rand() / div);
@@ -274,7 +274,7 @@ void Wsigma(struct StabilizerState *state, int *eps, int *p, int *m, gsl_complex
 	*eps = tempEps;
 	*p = tempP;
 	*m = tempM;
-	if(exact == 1){
+	if(exact == 0){ 
 		evalW(ans, *eps, *p, *m);
 	}
 }
@@ -471,26 +471,6 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
 //SUCCESS = 2
 int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy){
 	//xi is of length n
-	
-	/*
-	printf("\nn = %d", state->n);
-	printf("\nk = %d", state->k);
-	printf("\nQ = %d", state->Q);
-	printf("\nalpha = %d", alpha);
-	printf("\nh = ");
-	for(int i=0;i<state->n;i++){
-		printf("%.0f ", gsl_vector_get(state->h, i));
-	}
-	printf("\nD = ");
-	for(int i=0;i<state->n;i++){
-		printf("%.0f ", gsl_vector_get(state->D, i));
-	}
-	printf("\nxi = ");
-	for(int i=0;i<state->n;i++){
-		printf("%.0f ", gsl_vector_get(xi, i));
-	}
-	printf("\n");
-	*/
 	
 	int a;
 	double tempInt;
@@ -703,7 +683,7 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	
 	if(exact == 0){
 		exponentialSum(state, eps, p, m, ans, 0);
-		*ans = gsl_complex_mul_real(*ans, pow(2, -(state1->k + state2temp->k)/2));
+		*ans = gsl_complex_mul_real(*ans, pow(2, -((double)state1->k + (double)state2temp->k)/2));
 		return;
 	}
 	else{
@@ -750,10 +730,11 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 	double *cumulative;
 	cumulative = calloc((n+1), sizeof(double));
 	for(i=0;i<=n;i++){
-		for(d=0;d<i;d++){
+		for(d=0;d<=i;d++){
 			*(cumulative + i) += *(dist + d);
 		}
 	}
+
 	//normalize
 	for(i=0;i<=n;i++){
 		*(cumulative + i) /= *(cumulative + n);
@@ -772,8 +753,8 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 	}
 	int k = n - d;
 	
-	time_t t;
-	srand((unsigned) time(&t));
+	//time_t t;
+	//srand((unsigned) time(&t));
 	
 	gsl_matrix *X;
 	

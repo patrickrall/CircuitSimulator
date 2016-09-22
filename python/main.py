@@ -1,191 +1,15 @@
 #
 # file: main.py
-# Interface for the python implementation. Also implements sampling
-# algorithm.
+# Command line interface.
 #
 
-import numpy as np
 import sys
+import os
 import re
 from datetime import datetime
 import circuit.compile
 import circuit.gadgetize
-import projectors
-from sample import decompose, sampleProjector
-from multiprocessing import Pool
-
-
-# calculate probability circuit yielding a measurement
-def probability(circ, measure, config):
-
-    # unpack
-    verbose = config["verbose"]
-    parallel = config["parallel"]
-    Nsamples = config["samples"]
-
-    # get projectors
-    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, x=config["x"], y=config["y"])
-
-    # truncate projectors
-    Gprime, u = projectors.truncate(n, G)
-    Hprime, v = projectors.truncate(n, H)
-
-    # print projector data
-    if verbose:
-        print("Gadgetize circuit:")
-        print("G:")
-        printProjector(G)
-        print("H:")
-        printProjector(H)
-
-        print("Truncate projectors to magic state space:")
-        print("Gprime: (truncated by %d)" % u)
-        printProjector(Gprime)
-        print("Hprime: (truncated by %d)" % v)
-        printProjector(Hprime)
-
-    # check for -I in numerator
-    for i in range(len(Gprime[0])):
-        if Gprime[0][i] == 2 and \
-           np.allclose(np.zeros(len(Gprime[1][i])), Gprime[1][i]) and \
-           np.allclose(np.zeros(len(Gprime[2][i])), Gprime[2][i]):
-            if verbose: print("Found negative identity. Answer is 0.")
-            return 0
-
-    # check if projectors are identical
-    same = True
-    for i in range(len(Gprime[0])):
-        if i > len(Hprime[0])-1: same = False
-        same = (same and Gprime[0][i] == Hprime[0][i] and
-                np.allclose(Gprime[1][i], Hprime[1][i]) and
-                np.allclose(Gprime[2][i], Hprime[2][i]))
-
-    if same:
-        if verbose: print("Projectors are identical.")
-        return 2**(v-u)
-
-    # any empty projectors? require exact decomposition so we have norm.
-    if len(Gprime[0]) == 0 or len(Hprime[0]) == 0 and not config["exact"]:
-        print("Empty projectors found. Using exact decomposition to compute norm.")
-        config["exact"] = True
-
-    # calculate |L> ~= |H>
-    L, Lnorm = decompose(t, config["fidbound"], config["k"], config["exact"], config["rank"], config["fidelity"])
-
-    if verbose and L is None:
-        print("Using exact decomposition of |H^t>: 2^%d" % int(np.ceil(t/2)))
-    elif verbose:
-        print("Stabilizer rank of |L>: 2^%d" % len(L))
-
-    # parallelization over samples, or over elements of |L>?
-    # Can't do both because of yucky "child thread of child thread" handling
-    if L is None:
-        Lparallel = 2**(np.ceil(t/2)) > Nsamples
-    else:
-        Lparallel = 2**len(L) > Nsamples
-    if not parallel: Lparallel = False
-
-    # helper for preventing needless sampling trivial projectors or circuits
-    def calcProjector(P, Lparallel, pool=False):
-        if Lnorm is not None and (len(P[0]) == 0 or len(P[1][0]) == 0):
-            # empty projector or Clifford circuit. No sampling needed.
-            return Nsamples * sampleProjector((P, L, 0, False)) * np.abs(Lnorm)**2
-
-        queries = [(P, L, seed, Lparallel) for seed in range(0, Nsamples)]
-        if pool is not False: return sum(pool.map(sampleProjector, queries))
-        return sum(map(sampleProjector, queries))
-
-    # calculate || Gprime |L> ||^2 and || Hprime |L> ||^2 up to a constant
-    if parallel and not Lparallel:
-        if verbose: print("Parallelizing over %d samples" % Nsamples)
-
-        # set up thread pool
-        pool = Pool()
-
-        numerator = calcProjector(Gprime, False, pool=pool)
-        denominator = calcProjector(Hprime, False, pool=pool)
-
-        pool.close()
-        pool.join()
-
-    else:
-        if verbose and Lparallel and L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
-        elif verbose and Lparallel: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
-
-        numerator = calcProjector(Gprime, Lparallel)
-        denominator = calcProjector(Hprime, Lparallel)
-
-    if verbose:
-        print("|| Gprime |H^t> ||^2 ~= ", numerator/Nsamples)
-        print("|| Hprime |H^t> ||^2 ~= ", denominator/Nsamples)
-
-    return 2**(v-u) * (numerator/denominator)
-
-
-# sample from a set of qubits
-def sampleQubits(circ, measure, sample, config):
-    # unpack config
-    verbose = config["verbose"]
-
-    def prob(measure, exact=None):  # shortcut
-        if exact is not None:
-            old = config["exact"]
-            config["exact"] = exact
-        P = probability(circ, measure, config=config)
-        if exact is not None: config["exact"] = old
-        return P
-
-    # recursive implementation: need the probability of sampling a smaller
-    # set of qubits in order to sample next one
-    def recursiveSample(qubits, measure):
-        if len(qubits) == 1:  # base case
-            # is a sample even possible? Some qubit constraints are unsatisfiable.
-            if len(measure.keys()) != 0:  # other measurements present
-                P = prob(measure, exact=True)
-                if verbose: print("Constraints present. Probability of satifying: %f\n" % P)
-                if P == 0: return "", {}, 0  # not satisfiable
-                if P < 1e-5:
-                    print("Warning: probability of satisfying qubit constraints very low (%f). Could be impossible." % P)
-
-            # compute probability
-            measure[qubits[0]] = 0
-            P0 = prob(measure)
-
-            if verbose: print("Measuring qubit %d: P(0) = %f" % (qubits[0], P0))
-
-            # sample
-            qubit = 0 if np.random.random() < P0 else 1
-            if verbose: print("-> Sampled", qubit, "\n")
-
-            measure[qubits[0]] = qubit
-
-            # return sample and probability of sample occurring
-            return str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
-        else:
-            qubitssofar, measure, Psofar = recursiveSample(qubits[:-1], measure)
-
-            if qubitssofar == "": return "", {}, 0  # not satisfiable
-
-            # compute conditional probability
-            measure[qubits[-1]] = 0
-            P = prob(measure)
-            P0 = P/Psofar
-            if verbose:
-                print("Probability with qubit %d: %f" % (qubits[-1], P))
-                print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
-
-            # sample
-            qubit = 0 if np.random.random() < P0 else 1
-            if verbose:
-                print("-> Sampled", qubit)
-                print("-> Sample so far:", qubitssofar + str(qubit), "\n")
-
-            measure[qubits[-1]] = qubit
-
-            return qubitssofar + str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
-
-    output, _, _ = recursiveSample(sample, measure)
-    return output
+from probability import probability, sampleQubits
 
 
 def main(argv):
@@ -207,6 +31,8 @@ def main(argv):
         "fidelity": False,
         "y": None,
         "x": None,
+        "python": False,
+        "cpath": os.getcwd() + "/../c/sample",
     }
 
     # parse optional arguments
@@ -223,6 +49,8 @@ def main(argv):
         elif argv[i] == "-exact": config["exact"] = True
         elif argv[i] == "-rank": config["rank"] = True
         elif argv[i] == "-fidelity": config["fidelity"] = True
+        elif argv[i] == "-py": config["python"] = True
+        elif argv[i][:6] == "cpath=": config["cpath"] = argv[i][6:]
         else: raise ValueError("Invalid argument: " + argv[i])
 
     if not re.match("^(1|0|M|_)*$", argv[2]):
@@ -283,32 +111,6 @@ def main(argv):
 
     if config["verbose"]:
         print("Time elapsed: ", str(datetime.now() - starttime))
-
-
-def printProjector(projector):
-    phases, xs, zs = projector
-    for g in range(len(phases)):
-        phase, x, z = phases[g], xs[g], zs[g]
-        tmpphase = phase
-        genstring = ""
-        for i in range(len(x)):
-            if (x[i] == 1 and z[i] == 1):
-                tmpphase -= 1  # divide phase by i
-                # genstring += "(XZ)"
-                genstring += "Y"
-                continue
-            if (x[i] == 1):
-                genstring += "X"
-                continue
-            if (z[i] == 1):
-                genstring += "Z"
-                continue
-            genstring += "_"
-        tmpphase = tmpphase % 4
-        lookup = {0: " +", 1: " i", 2: " -", 3: "-i"}
-        print(lookup[tmpphase] + genstring)
-    if len(phases) == 0:
-        print("Projector is empty.")
 
 
 def usage(error):
@@ -387,6 +189,12 @@ Non-parallel mode. Parallelization may cause problems with random
 number generation on some machines. Since the algorithm is highly
 concurrent, non-parallel mode is very slow.
 
+[-py]
+Use python backend. The python backend is slower than the c backend.
+
+[cpath="/path/to/sample"]
+Path to the compiled "sample" executable.
+
 --- L selection parameters ---
 The algorithm must construct a magic state |H^t>, where t is the number
 of T-gates in the circuit. This state is resolved as a linear combination
@@ -435,8 +243,8 @@ If the fidbound option is specified, L is sampled until <H^t|L> > 1-fidbound.
 
 
 --- Debugging ---
-[y=?]
-Set the postselection of the T gates. E.g. y=0010.
+[y=?], [x=?]
+Set the postselection of the T gates and other measurements, e.g., y=0010.
 Output should be independent of the postselection, at least
 up to some small error. If different y give different results
 then there is a problem somewhere.
