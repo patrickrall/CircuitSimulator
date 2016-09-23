@@ -9,7 +9,7 @@
 #include <gsl/gsl_complex.h>
 #include <gsl/gsl_complex_math.h>
 #include <gsl/gsl_linalg.h>
-#include "stabilizer.h"
+#include "stabilizer/stabilizer.h"
 #include <pthread.h>
 
 #include <gsl/gsl_errno.h>
@@ -25,9 +25,9 @@ struct Projector {
 
 /* some prototypes */
 struct Projector* readProjector(void);
-void decompose(gsl_matrix *L, double *norm, const int t, int *k, 
+void decompose(gsl_matrix **L, double *norm, const int t, int *k, 
 		const double fidbound, short *exact, const short rank, const short fidelity);
-double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short exact, const short parallel);
+double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short exact, const int maxthreads);
 
 /* for debugging, remove later */
 void printProjector(struct Projector *P) {
@@ -74,7 +74,7 @@ void printProjector(struct Projector *P) {
 }
 
 /************* Main: parse args, get L, and eval projectors *************/
-int main(int argc, char* argv[]){
+int main(void){
     gsl_set_error_handler_off();
 
     int debug = 0; 
@@ -98,17 +98,17 @@ int main(int argc, char* argv[]){
     if (print) printf("fidbound: %f\n", fidbound);
 
     short exact;
-    if (!debug) scanf("%d", &exact); 
+    if (!debug) scanf("%hd", &exact); 
     else exact = 1;
     if (print) printf("exact: %d\n", exact);
 
     short rank;
-    if (!debug) scanf("%d", &rank);
+    if (!debug) scanf("%hd", &rank);
     else rank = 1;
     if (print) printf("rank: %d\n", rank);
 
     short fidelity;
-    if (!debug) scanf("%d", &fidelity); 
+    if (!debug) scanf("%hd", &fidelity); 
     else fidelity = 1;
     if (print) printf("fidelity: %d\n", fidelity);
 
@@ -185,10 +185,10 @@ int main(int argc, char* argv[]){
     else Nsamples = 5000;
     if (print) printf("Nsamples: %d\n", Nsamples);
 
-    int parallel;
-    if (!debug) scanf("%d", &parallel); 
-    else parallel = 0; // parallelism not implemented yet
-    if (print) printf("parallel: %d\n", parallel);
+    int maxthreads;
+    if (!debug) scanf("%d", &maxthreads); 
+    else maxthreads = 1;
+    if (print) printf("maxthreads: %d\n", maxthreads);
     
 	if (print) printf("Finished reading input.\n");
 
@@ -197,9 +197,9 @@ int main(int argc, char* argv[]){
     srand(time(NULL)); // set random seed
     //srand(0);
 
-    gsl_matrix *L;
+    gsl_matrix *L = NULL;
     double Lnorm;
-    decompose(L, &Lnorm, t, &k, fidbound, &exact, rank, fidelity);
+    decompose(&L, &Lnorm, t, &k, fidbound, &exact, rank, fidelity);
 
     if (exact == 1) {
         printf("Using exact decomposition of |H^t>: 2^%d\n", t);
@@ -218,7 +218,7 @@ int main(int argc, char* argv[]){
         numerator = Nsamples * sampleProjector(G, L, k, exact, 0) * Lnorm*Lnorm;
     } else {
         for (int i = 0; i < Nsamples; i++) {
-            numerator += sampleProjector(G, L, k, exact, 0);
+            numerator += sampleProjector(G, L, k, exact, maxthreads);
         }
     }
     if (print) printf("Calculated G\n");
@@ -228,7 +228,7 @@ int main(int argc, char* argv[]){
         denominator = Nsamples * sampleProjector(H, L, k, exact, 0) * Lnorm*Lnorm;
     } else {
         for (int i = 0; i < Nsamples; i++) {
-            denominator += sampleProjector(H, L, k, exact, 0);
+            denominator += sampleProjector(H, L, k, exact, maxthreads);
         }
     }
     if (print) printf("Calculated H\n");
@@ -277,12 +277,12 @@ struct Projector* readProjector(void) {
 
 /************* Decompose: calculate L, or decide on exact decomp *************/
 //if k <= 0, the function finds k on its own
-void decompose(gsl_matrix *L, double *norm, const int t, int *k, 
+void decompose(gsl_matrix **L, double *norm, const int t, int *k, 
 		const double fidbound, short *exact, const short rank, const short fidelity){
 	
 	//trivial case
 	if(t == 0){
-		L = gsl_matrix_alloc(0, 0);
+		*L = gsl_matrix_alloc(0, 0);
         *exact = 0;
 		*norm = 1;
 		return;
@@ -309,7 +309,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 	//prevents infinite loops
     if (*k > t){
         if (forceK){
-			printf("\nCan't have k > t. Setting k to %d.", t);
+			printf("Can't have k > t. Setting k to %d.\n", t);
 		}
 		*k = t;
 	}
@@ -318,7 +318,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 	
 	gsl_matrix *U, *V;
 	gsl_vector *S, *work;
-	L = gsl_matrix_alloc(*k, t);
+	*L = gsl_matrix_alloc(*k, t);
 	U = gsl_matrix_alloc(t, *k);
 	V = gsl_matrix_alloc(*k, *k);  
 	S = gsl_vector_alloc(*k); 
@@ -331,7 +331,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
         // sample random matrix
 		for(int i=0;i<*k;i++){
 			for(int j=0;j<t;j++){
-				gsl_matrix_set(L, i, j, rand() & 1);	//set to either 0 or 1
+				gsl_matrix_set(*L, i, j, rand() & 1);	//set to either 0 or 1
 			}
 		}
 		
@@ -339,7 +339,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 		if(rank){
 			int currRank = 0;
 			//rank of a matrix is the number of non-zero values in its singular value decomposition
-			gsl_matrix_transpose_memcpy(U, L);
+			gsl_matrix_transpose_memcpy(U, *L);
 			gsl_linalg_SV_decomp(U, V, S, work);
 			for(int i=0;i<*k;i++){
 				if(fabs(gsl_vector_get(S, i)) > 0.00001){
@@ -349,7 +349,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 			
 			//check rank
 			if(currRank < *k){
-				printf("\nL has insufficient rank. Sampling again...");
+				printf("L has insufficient rank. Sampling again...\n");
 				continue;
 			}
 		}
@@ -386,7 +386,7 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 					gsl_vector_set(z, i, (double)(*(zArray+currPos)));
 				}
 				
-				gsl_blas_dgemv(CblasTrans, 1., L, z, 0., x);
+				gsl_blas_dgemv(CblasTrans, 1., *L, z, 0., x);
 				
 				double temp = 0;
 				for(int i=0;i<t;i++){
@@ -399,14 +399,14 @@ void decompose(gsl_matrix *L, double *norm, const int t, int *k,
 			innerProduct = pow(2,*k) * pow(v, 2*t) / Z_L;
 			
 			if(forceK){
-				printf("\nInner product <H^t|L>: %lf\n", innerProduct);
+				printf("Inner product <H^t|L>: %lf\n", innerProduct);
 				break;
 			}
 			else if(innerProduct < 1-fidbound){
-				printf("\nInner product <H^t|L>: %lf - Not good enough!\n", innerProduct);
+				printf("Inner product <H^t|L>: %lf - Not good enough!\n", innerProduct);
 			}
 			else{
-				printf("\nInner product <H^t|L>: %lf\n", innerProduct);
+				printf("Inner product <H^t|L>: %lf\n", innerProduct);
 			}
 		}
 		else{
@@ -559,7 +559,6 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 			gsl_vector_set(tempVector, t-1, 1);
 			
 			//last qubit: |H> = (1/2v)(|0> + |+>)
-            //printf("In: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", phi->k, (int)gsl_vector_get(phi->h, 0) ,(int)gsl_matrix_get(phi->G, 0, 0), (int)gsl_matrix_get(phi->Gbar, 0, 0), phi->Q, (int)gsl_vector_get(phi->D, 0), (int)gsl_matrix_get(phi->J, 0, 0));
 			if(bits[j] == '0'){
 				measurePauli(phi, 0, tempVector, zeroVector);	//|0>, measure Z
 			}
@@ -581,7 +580,6 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 		measurePauli(phi, 0, tempVector, zeroVector);	//measure ZZ
 	}
 	
-    //printf("Phi: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", phi->k, (int)gsl_vector_get(phi->h, 0) ,(int)gsl_matrix_get(phi->G, 0, 0), (int)gsl_matrix_get(phi->Gbar, 0, 0), phi->Q, (int)gsl_vector_get(phi->D, 0), (int)gsl_matrix_get(phi->J, 0, 0));
     //printf("Theta: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", theta->k, (int)gsl_vector_get(theta->h, 0) ,(int)gsl_matrix_get(theta->G, 0, 0), (int)gsl_matrix_get(theta->Gbar, 0, 0), theta->Q, (int)gsl_vector_get(theta->D, 0), (int)gsl_matrix_get(theta->J, 0, 0));
 
 	// int *eps, *p, *m;
@@ -626,7 +624,7 @@ void *samplethread(void *args) {
 
 
 
-double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short exact, const short parallel){
+double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short exact, const int maxthreads){
     // empty projector
     if (P->Nstabs == 0) return 1;
 
@@ -672,7 +670,6 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
     } 
 
     gsl_complex total = gsl_complex_rect(0,0);
-    gsl_complex innerProd;
 
     struct ThreadData *data;
     unsigned int size;
@@ -685,7 +682,6 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
     
     pthread_mutex_t total_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    int maxthreads = 10; // maximum number of parallel threads
     pthread_t *tids = (pthread_t*)malloc(sizeof(pthread_t)*maxthreads);
     int j = 0;
 

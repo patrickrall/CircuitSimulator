@@ -2,7 +2,7 @@ SimulationCode
 SimulationCode/*
 Examples
 Examples/*
-python/stabilizer/exampleFunctionCalls/Shrink.txt
+tests/exampleFunctionCalls/Shrink.txt
 */__pycache__/*
 */__pycache__
 */*.pyc

@@ -145,7 +145,7 @@ void evalW(gsl_complex *ans, int eps, int p, int m){
 //Evaluates 1 + e^{A*i*pi/4} + e^{A*i*pi/4} - e^{(A + B)*i*pi/4}
 void Gamma(int *eps, int *p, int *m, int A, int B){
 	if(mod(A,2)==1 || mod(B,2)==1){
-		printf("Gamma: A and B must be even!");
+		printf("Gamma: A and B must be even!\n");
 		return;
 	}
 	
@@ -199,7 +199,7 @@ void Gamma(int *eps, int *p, int *m, int A, int B){
 //Evaluates 1 + e^{A*i*pi/4}
 void partialGamma(int *eps, int *p, int *m, int A){
 	if(mod(A,2)==1){
-		printf("partialGamma: A must be even!");
+		printf("partialGamma: A must be even!\n");
 		return;
 	}
 	
@@ -458,11 +458,11 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
 			
 			//Now eps1 == eps0 == 1
 			if(p0 != p1){
-				printf("ExponentialSum: p0, p1 must be equal!");
+				printf("ExponentialSum: p0, p1 must be equal!\n");
 				return;
 			}
 			if(mod((m1-m0), 2) == 1){
-				printf("ExponentialSum: m1-m0 must be even!");
+				printf("ExponentialSum: m1-m0 must be even!\n");
 				return;
 			}
 			
@@ -624,7 +624,7 @@ int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy){
 
 void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact){
 	if(state1->n != state2->n){
-		printf("innerProduct: States do not have same dimension.");
+		printf("innerProduct: States do not have same dimension.\n");
 		return;
 	}
 	
@@ -749,7 +749,7 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 	//not using the dDists caching from python
 	
 	if(n<1){
-		printf("randomStabilizerState: Vector space must have positive nonzero dimension.");
+		printf("randomStabilizerState: Vector space must have positive nonzero dimension.\n");
 	}
 	
 	int i, j, d;
@@ -810,7 +810,6 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 		gsl_vector *work;
 		work = gsl_vector_alloc(n);
 		int rank;
-		double tempInt;
 		//X is d x n but we'll transpose it later
 		//need those dimensions to make SVD work since n>=d
 		while(1){

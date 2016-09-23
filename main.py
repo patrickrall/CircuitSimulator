@@ -4,12 +4,10 @@
 #
 
 import sys
-import os
 import re
 from datetime import datetime
-import circuit.compile
-import circuit.gadgetize
-from probability import probability, sampleQubits
+import libcirc.compilecirc as compilecirc
+from libcirc.probability import probability, sampleQubits
 
 
 def main(argv):
@@ -22,7 +20,7 @@ def main(argv):
     config = {
         "verbose": False,
         "parallel": True,
-        "reference": "circuit/reference",
+        "reference": "circuits/reference.circ",
         "samples": int(1e3),
         "fidbound": 1e-5,
         "k": None,
@@ -32,7 +30,7 @@ def main(argv):
         "y": None,
         "x": None,
         "python": False,
-        "cpath": os.getcwd() + "/../c/sample",
+        "cpath": "libcirc/sample",
     }
 
     # parse optional arguments
@@ -58,10 +56,10 @@ def main(argv):
 
     # load input circuit
     f = open(argv[1], "r")
-    infile = circuit.compile.removeComments(f.read())
+    infile = compilecirc.removeComments(f.read())
     f.close()
 
-    n = len(circuit.compile.standardGate(infile.splitlines()[0], lineMode=True))
+    n = len(compilecirc.standardGate(infile.splitlines()[0], lineMode=True))
 
     # measurement string correct length
     if (len(argv[2]) != n):
@@ -73,11 +71,11 @@ def main(argv):
 
     # load reference
     f = open(config["reference"])
-    reference = circuit.compile.parseReference(circuit.compile.removeComments(f.read()))
+    reference = compilecirc.parseReference(compilecirc.removeComments(f.read()))
     f.close()
 
     # compile circuit
-    circ = circuit.compile.compileRawCircuit(infile, reference)
+    circ = compilecirc.compileRawCircuit(infile, reference)
 
     # get measurements
     measure = {}
@@ -115,7 +113,7 @@ def main(argv):
 
 def usage(error):
     print(error + """\n\nStabilizer simulator usage:
-main.py <circuitfile> <measurement> [reference=circuits/reference]
+main.py <circuitfile> <measurement>
 
 Full help statement: main.py -h""")
 

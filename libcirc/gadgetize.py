@@ -4,7 +4,7 @@
 # output stabilizer projectors g(x,y) and h(x)
 #
 
-from circuit.compile import standardGate, removeComments
+from libcirc.compilecirc import standardGate, removeComments
 import numpy as np
 
 

@@ -8,7 +8,7 @@
 #include <gsl/gsl_complex.h>
 #include <gsl/gsl_complex_math.h>
 #include <gsl/gsl_linalg.h>
-#include "stabilizer.h"
+#include "../libcirc/stabilizer/stabilizer.h"
 
 int readInt(FILE *fr, char *line, const int maxLineLength, int *target){
 	if(!fgets(line, maxLineLength, fr)){
@@ -68,7 +68,7 @@ void testFileExponentialSum(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 
-	fr = fopen("stabilizerTests/exponentialSumTests.txt", "rt");
+	fr = fopen("tests/stabilizerTests/exponentialSumTests.txt", "rt");
 	while(1){
 		struct StabilizerState state;
 		int eps, outEps, p, outP, m, outM;
@@ -153,7 +153,7 @@ void testFileShrink(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 	
-	fr = fopen("stabilizerTests/shrinkTests.txt", "rt");
+	fr = fopen("tests/stabilizerTests/shrinkTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -324,7 +324,7 @@ void testFileInnerProduct(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 	
-	fr = fopen("stabilizerTests/innerProductTests.txt", "rt");
+	fr = fopen("tests/stabilizerTests/innerProductTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state1;
@@ -468,7 +468,7 @@ void testFileInnerProduct(){
 		int isMWorking = mod(m, 8) == mod(outM, 8) ? 1 : 0;
 		
 		totalTests++;
-		if(eps==0&&isEpsWorking || isEpsWorking*isPWorking*isMWorking > 0){
+		if((eps==0&&isEpsWorking) || isEpsWorking*isPWorking*isMWorking > 0){
 			successTests++;
 		}
 		else{
@@ -492,7 +492,7 @@ void testFileExtend(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 	
-	fr = fopen("stabilizerTests/extendTests.txt", "rt");
+	fr = fopen("tests/stabilizerTests/extendTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -587,11 +587,11 @@ void testFileMeasurePauli(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 	
-	fr = fopen("stabilizerTests/measurePauliTests.txt", "rt");
+	fr = fopen("tests/stabilizerTests/measurePauliTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
-		int m, outk, outQ, outStatus;
+		int m, outk, outQ;
 		double outResult;
 		gsl_vector *zeta, *xi, *outh, *outD;
 		gsl_matrix *outG, *outGbar, *outJ;

@@ -4,10 +4,16 @@
 # as described in appendix F.
 #
 
-from probability import probability
-from circuit.compile import compileRawCircuit, removeComments, parseReference
-import numpy as np
 import os
+import sys
+sys.path.append(os.path.abspath('.'))
+
+from libcirc.probability import probability  # import issues? see comment in file!
+from libcirc.compilecirc import compileRawCircuit, removeComments, parseReference
+# import issues? Try executing from root directory: python circuits/hiddenshift.py
+# You can also try adding the root directory to your python path.
+
+import numpy as np
 from datetime import datetime
 
 # ######## CONFIG ######## #
@@ -123,7 +129,7 @@ for i in range(n):
     circuit += line + "\n"
 
 # compile
-f = open("circuit/reference")
+f = open("circuits/reference.circ")
 reference = parseReference(removeComments(f.read()))
 f.close()
 compiled = compileRawCircuit(circuit, reference)
@@ -154,7 +160,7 @@ config = {
     "y": None,
     "x": None,
     "python": False,
-    "cpath": os.getcwd() + "/../c/sample",
+    "cpath": "libcirc/sample",
 }
 
 

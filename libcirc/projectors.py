@@ -5,8 +5,8 @@
 #
 
 import numpy as np
-import circuit.compile
-import circuit.gadgetize
+import libcirc.compilecirc as compilecirc
+import libcirc.gadgetize as gadgetize
 
 
 # obtain projectors G, H
@@ -17,9 +17,9 @@ import circuit.gadgetize
 # are selected automatically at random. Setting the zeros
 # flag turns off randomness and makes all measurements |0>.
 def projectors(circ, measure, verbose=False, x=None, y=None):
-    n = len(circuit.compile.standardGate(circ.splitlines()[0], lineMode=True))
+    n = len(compilecirc.standardGate(circ.splitlines()[0], lineMode=True))
 
-    t, Ms, MTs = circuit.gadgetize.countY(circ)
+    t, Ms, MTs = gadgetize.countY(circ)
     # t  - number of T gates
     # Ms - qubits measured by circuit
     # MTs - qubits measured by circuit, depending on
@@ -77,8 +77,8 @@ def projectors(circ, measure, verbose=False, x=None, y=None):
 
         print("y:", "".join(y.astype(str).tolist()))
 
-    G = circuit.gadgetize.gadgetize(circ, measure, y)
-    H = circuit.gadgetize.gadgetize(circ, Mdict, y)
+    G = gadgetize.gadgetize(circ, measure, y)
+    H = gadgetize.gadgetize(circ, Mdict, y)
 
     return G, H, n, t  # also return n and t for convenience
 

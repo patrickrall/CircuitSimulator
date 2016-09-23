@@ -5,8 +5,8 @@
 #
 
 import numpy as np
-from stabilizer.stabilizer import StabilizerState
 from multiprocessing import Pool
+from libcirc.stabilizer.stabilizer import StabilizerState
 
 
 def decompose(t, fidbound, k, exact, rank, fidelity):

@@ -5,11 +5,12 @@
 #
 
 import numpy as np
-import projectors
-from sample import decompose, sampleProjector
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from subprocess import PIPE, Popen
 import os
+
+from libcirc.sample import decompose, sampleProjector
+import libcirc.projectors as projectors
 
 
 # calculate probability that a compiled circuit yields a measurement
@@ -171,17 +172,34 @@ def probability(circ, measure, config):
         indat += writeProjector(Hprime)
 
         indat += send(Nsamples)  # Nsamples
-        indat += send(1 if config["parallel"] else 0)  # parallel
+        if config["parallel"]:
+            indat += send(int(cpu_count()))
+        else:
+            indat += send(1)  # one core
 
         out = p.communicate(input=indat)
         out = out[0].decode().splitlines()
 
+        success = True
+        try:
+            numerator = float(out[-2])
+            denominator = float(out[-1])
+        except IndexError:
+            print("C code encountered error. Aborting.")
+            if len(out) > 0:
+                print("Begin C code output:")
+                for line in out:
+                    print(line)
+                print("End C code output.")
+            else:
+                print("C code gave no output.")
+            success = False
+
+        if not success: raise RuntimeError
+
         if verbose:
             for line in out[:-2]:
                 print(line)
-
-        numerator = float(out[-2])
-        denominator = float(out[-1])
 
     if verbose:
         print("|| Gprime |H^t> ||^2 ~= ", numerator/Nsamples)

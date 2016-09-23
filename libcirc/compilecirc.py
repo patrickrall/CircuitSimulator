@@ -1,5 +1,5 @@
 #
-# file: compile.py
+# file: compilecirc.py
 # input a file with a list of gates, not necessarily in standard set
 # output compiled circuit with all gates in standard set
 #
@@ -273,29 +273,3 @@ def parseReference(data):
         output[key]["reused"] = reused
 
     return output  # done
-
-
-def testcompile():
-    # configuration
-    reffilename = "reference"
-    infilename = "circuit/examples/raw1.circ"
-    outfilename = "circuit/examples/compiled1.circ"
-
-    # read reference
-    f = open(reffilename, "r")
-    reference = parseReference(removeComments(f.read()))
-    f.close()
-
-    # prepare data
-    infile = open(infilename, "r")
-    indata = removeComments(infile.read())
-    infile.close()
-
-    # parse input
-    output = compileRawCircuit(indata, reference)
-    print(output)
-
-    # write to outfile
-    outfile = open(outfilename, "w")
-    outfile.write(output)
-    outfile.close()
