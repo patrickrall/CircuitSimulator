@@ -68,7 +68,11 @@ void testFileExponentialSum(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 
-	fr = fopen("tests/stabilizerTests/exponentialSumTests.txt", "rt");
+    time_t start_t, end_t;
+    double diff_t;
+    time(&start_t);
+    
+	fr = fopen("tests/tests-c/exponentialSumTests.txt", "rt");
 	while(1){
 		struct StabilizerState state;
 		int eps, outEps, p, outP, m, outM;
@@ -141,7 +145,11 @@ void testFileExponentialSum(){
 	fclose(fr);
 	
 	printf("%d out of %d tests successful.\n", successTests, totalTests);
-	
+    
+    time(&end_t);
+    diff_t = difftime(end_t, start_t);
+    printf("Time elapsed: %f s\n", diff_t);
+
 	printf("----------------------\n");
 }
 
@@ -152,8 +160,12 @@ void testFileShrink(){
 	const int maxLineLength = 20000;
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
-	
-	fr = fopen("tests/stabilizerTests/shrinkTests.txt", "rt");
+
+    time_t start_t, end_t;
+    double diff_t;
+    time(&start_t);
+
+	fr = fopen("tests/tests-c/shrinkTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -312,7 +324,10 @@ void testFileShrink(){
 	fclose(fr);
 	
 	printf("%d out of %d tests successful.\n", successTests, totalTests);
-	
+    time(&end_t);
+    diff_t = difftime(end_t, start_t);
+    printf("Time elapsed: %f s\n", diff_t);
+
 	printf("----------------------\n");
 }
 
@@ -324,7 +339,11 @@ void testFileInnerProduct(){
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
 	
-	fr = fopen("tests/stabilizerTests/innerProductTests.txt", "rt");
+    time_t start_t, end_t;
+    double diff_t;
+    time(&start_t);
+
+	fr = fopen("tests/tests-c/innerProductTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state1;
@@ -475,12 +494,21 @@ void testFileInnerProduct(){
 			printf("eps: %d, outEps: %d, p: %d, outP: %d, m: %d, outM: %d", eps, outEps, p, outP, m, outM);
 			printf("Test number %d failed.\n", totalTests);
 		}
+
+        /*
+        if (totalTests == 100) {
+            break;
+        }*/
 	}
 	
 	fclose(fr);
 	
 	printf("%d out of %d tests successful.\n", successTests, totalTests);
-	
+
+    time(&end_t);
+    diff_t = difftime(end_t, start_t);
+    printf("Time elapsed: %f s\n", diff_t);
+
 	printf("----------------------\n");
 }
 
@@ -491,8 +519,12 @@ void testFileExtend(){
 	const int maxLineLength = 20000;
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
-	
-	fr = fopen("tests/stabilizerTests/extendTests.txt", "rt");
+
+    time_t start_t, end_t;
+    double diff_t;
+    time(&start_t);
+
+	fr = fopen("tests/tests-c/extendTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -575,7 +607,11 @@ void testFileExtend(){
 	fclose(fr);
 	
 	printf("%d out of %d tests successful.\n", successTests, totalTests);
-	
+
+    time(&end_t);
+    diff_t = difftime(end_t, start_t);
+    printf("Time elapsed: %f s\n", diff_t);
+
 	printf("----------------------\n");
 }
 
@@ -586,8 +622,12 @@ void testFileMeasurePauli(){
 	const int maxLineLength = 20000;
 	char line[maxLineLength];
 	int totalTests = 0, successTests = 0;
-	
-	fr = fopen("tests/stabilizerTests/measurePauliTests.txt", "rt");
+
+    time_t start_t, end_t;
+    double diff_t;
+    time(&start_t);
+
+	fr = fopen("tests/tests-c/measurePauliTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -751,7 +791,11 @@ void testFileMeasurePauli(){
 	fclose(fr);
 	
 	printf("%d out of %d tests successful.\n", successTests, totalTests);
-	
+
+    time(&end_t);
+    diff_t = difftime(end_t, start_t);
+    printf("Time elapsed: %f s\n", diff_t);
+
 	printf("----------------------\n");
 }
 

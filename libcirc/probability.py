@@ -4,6 +4,7 @@
 # subroutine and sampling algorithm.
 #
 
+import sys
 import numpy as np
 from multiprocessing import Pool, cpu_count
 from subprocess import PIPE, Popen
@@ -147,7 +148,8 @@ def probability(circ, measure, config):
             dat = b""
 
             dat += send(len(ph))  # Nstabs
-            dat += send(len(xs[0]))  # Nqubits
+            if len(ph) > 0: dat += send(len(xs[0]))  # Nqubits
+            else: dat += send(0)  # empty projector
             for i in range(len(ph)):
                 dat += send(int(ph[i]))
                 for j in range(len(xs[i])):
@@ -177,8 +179,24 @@ def probability(circ, measure, config):
         else:
             indat += send(1)  # one core
 
-        out = p.communicate(input=indat)
-        out = out[0].decode().splitlines()
+        # out = p.communicate(input=indat)
+        # out = out[0].decode().splitlines()
+
+        p.stdin.write(indat)
+        p.stdin.flush()
+
+        out = []
+        while True:
+            p.stdout.flush()
+            line = p.stdout.readline().decode()[:-1]
+            if not line:
+                break
+
+            if ("Numerator:" in line or "Denominator:" in line):
+                print(line, end="\r")
+            else:
+                out.append(line)
+        sys.stdout.write("\033[K")
 
         success = True
         try:

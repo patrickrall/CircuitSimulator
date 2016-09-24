@@ -1,5 +1,4 @@
 from subprocess import PIPE, Popen
-import os
 
 
 def printProjector(projector):
@@ -58,7 +57,7 @@ Hxs = [[1, 0, 0], [0, 1, 1]]
 Hzs = [[1, 1, 1], [0, 1, 0]]
 H = (Hph, Hxs, Hzs)
 
-p = Popen(os.getcwd()+"/sample", stdin=PIPE, stdout=PIPE, bufsize=1)
+p = Popen("libcirc/sample", stdin=PIPE, stdout=PIPE, bufsize=1)
 
 indat = b""
 
@@ -72,9 +71,22 @@ indat += send(0)  # fidelity
 indat += writeProjector(G)
 indat += writeProjector(H)
 
-indat += send(1000)  # Nsamples
-indat += send(0)  # parallel
+indat += send(40000)  # Nsamples
+indat += send(1)  # numcores
 
 
-out = p.communicate(input=indat)
-print(out[0].decode())
+# out = p.communicate(input=indat)
+# print(out[0].decode())
+
+p.stdin.write(indat)
+p.stdin.flush()
+
+
+while True:
+    line = p.stdout.readline().decode()[:-1]
+    if not line:
+        break
+
+    if ("Numerator:" in line or "Denominator:" in line):
+        print(line, end="\r")
+    else: print(line + " "*50)

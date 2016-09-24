@@ -414,13 +414,13 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
     free(K);
     free(tempE);
     free(E);
-    free(S);
 
 	if(Slength == 0){
 		//Compute W(K,q) from Eq. 63
 		Wsigma(state, eps, p, m, ans, exact, 0, 0, M, Mlength, Dimers, DimersLength);
         free(Dimers);
         free(M);
+        free(S);
 		return;
 	}
 	else{
@@ -434,6 +434,7 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
             free(Dimers);
             free(M);
 
+            free(S);
 			return;
 		}
 		else{
@@ -442,6 +443,7 @@ void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl
 			Wsigma(state, &eps1, &p1, &m1, ans, exact, 1, *(S), M, Mlength, Dimers, DimersLength);
             free(Dimers);
             free(M);
+            free(S);
 			
 			if(eps0 == 0){
 				*eps = eps1;

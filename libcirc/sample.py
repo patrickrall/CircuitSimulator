@@ -21,6 +21,7 @@ def decompose(t, fidbound, k, exact, rank, fidelity):
     if k is None:
         # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
         k = np.ceil(1 - 2*t*np.log2(v) - np.log2(fidbound))
+    k = int(k)
 
     # can achieve k = t/2 by pairs of stabilizer states
     if exact or (k > t/2 and not forceK):

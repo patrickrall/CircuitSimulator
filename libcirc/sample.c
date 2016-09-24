@@ -188,7 +188,10 @@ int main(void){
     int maxthreads;
     if (!debug) scanf("%d", &maxthreads); 
     else maxthreads = 1;
+    if (maxthreads < 1) maxthreads = 1;
+
     if (print) printf("maxthreads: %d\n", maxthreads);
+
     
 	if (print) printf("Finished reading input.\n");
 
@@ -219,6 +222,8 @@ int main(void){
     } else {
         for (int i = 0; i < Nsamples; i++) {
             numerator += sampleProjector(G, L, k, exact, maxthreads);
+            printf("Numerator: %d/%d samples\n", i, Nsamples);
+            fflush(stdout);
         }
     }
     if (print) printf("Calculated G\n");
@@ -229,6 +234,8 @@ int main(void){
     } else {
         for (int i = 0; i < Nsamples; i++) {
             denominator += sampleProjector(H, L, k, exact, maxthreads);
+            printf("Denominator: %d/%d samples\n", i, Nsamples);
+            fflush(stdout);
         }
     }
     if (print) printf("Calculated H\n");
