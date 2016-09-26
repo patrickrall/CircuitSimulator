@@ -19,8 +19,8 @@ def main(argv):
 
     config = {
         "verbose": False,
+        "silenceprojectors": False,
         "parallel": True,
-        "reference": "circuits/reference.circ",
         "samples": int(1e3),
         "fidbound": 1e-5,
         "k": None,
@@ -38,7 +38,6 @@ def main(argv):
 
         if argv[i] == "-v": config["verbose"] = True
         elif argv[i] == "-np": config["parallel"] = False
-        elif argv[i][:10] == "reference=": config["reference"] = argv[i][10:]
         elif argv[i][:8] == "samples=": config["samples"] = int(float(argv[i][8:]))
         elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])
         elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
@@ -48,6 +47,7 @@ def main(argv):
         elif argv[i] == "-rank": config["rank"] = True
         elif argv[i] == "-fidelity": config["fidelity"] = True
         elif argv[i] == "-py": config["python"] = True
+        elif argv[i] == "-sp": config["silenceprojectors"] = True
         elif argv[i][:6] == "cpath=": config["cpath"] = argv[i][6:]
         else: raise ValueError("Invalid argument: " + argv[i])
 
@@ -55,27 +55,8 @@ def main(argv):
         return usage("Measurement string must consists only of '1', '0', 'M' or '_'.")
 
     # load input circuit
-    f = open(argv[1], "r")
-    infile = compilecirc.removeComments(f.read())
-    f.close()
-
-    n = len(compilecirc.standardGate(infile.splitlines()[0], lineMode=True))
-
-    # measurement string correct length
-    if (len(argv[2]) != n):
-        return usage("Measurement not the right length:\n" +
-                     "Expected %d, but input is %d long." % (n, len(argv[2])))
-
-    # measurement string can't be all "_"'s
-    if argv[2] == "_"*n: return usage("Must measure at least one bit.")
-
-    # load reference
-    f = open(config["reference"])
-    reference = compilecirc.parseReference(compilecirc.removeComments(f.read()))
-    f.close()
-
-    # compile circuit
-    circ = compilecirc.compileRawCircuit(infile, reference)
+    infile = argv[1]
+    circ = compilecirc.compileCircuit(fname=infile)
 
     # get measurements
     measure = {}
@@ -120,8 +101,8 @@ Full help statement: main.py -h""")
 
 def help():
     print("""Stabilizer simulator usage:
-main.py <circuitfile> <measurement> [reference=circuit/reference] [samples=1e3]
-                    [-v] [-np] [-exact] [-rank] [k=?] [fidbound=1e-5] [-fidelity]
+main.py <circuitfile> <measurement> [samples=1e3] [-v] [-np] [-py] [-sp] [-exact]
+        [-rank] [k=?] [fidbound=1e-5] [-fidelity]
 
 Example:
 python main.py examples/controlledH.circ _M samples=2e6
@@ -188,7 +169,11 @@ number generation on some machines. Since the algorithm is highly
 concurrent, non-parallel mode is very slow.
 
 [-py]
-Use python backend. The python backend is slower than the c backend.
+Use python backend. The python backend is slower than the c backend,
+but the code may be easier to read.
+
+[-sp]
+Silence projector printing despite verbosity. Useful for big circuits.
 
 [cpath="/path/to/sample"]
 Path to the compiled "sample" executable.

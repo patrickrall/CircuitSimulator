@@ -1,3 +1,7 @@
+import reference.circ
+
+// testing subtleties in the measurement system
+main:
 _H
 _S
 _H

@@ -1,28 +1,32 @@
-# Hadamard first register
-H_____
-_H____
-__H___
+import reference.circ
 
-# controlled T gate onto second register
-C__T__
-C___T_
-C____T
+// Estimates phase of T|1> 
+// Very expensive: 94 T gates
 
-_C_T__
-_C__T_
-_C___T
+main:
+// prepare initial state
+___X
 
-__CT__
-__C_T_
-__C__T
+// Hadamard first register
+H___
+_H__
+__H_
 
-# inverse 3-qubit fourier transform
-X_X___
-__H___
-_SC___
-_H____
-TC____
-SC____
-H_____
+// controlled T gate at various powers
+C__S
 
-# measure last three bits
+_C_S
+_C_S
+
+__CS
+__CS
+__CS
+
+// inverse 3-qubit fourier transform
+X_X_
+__H_
+_SC_
+_H__
+T_C_
+SC__
+H___

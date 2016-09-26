@@ -1,3 +1,18 @@
-X__
-_X_
+from reference.circ import CCX
+
+/*
+main:
+X__ // initialize
+_X_ 
 CCX
+CXC
+*/
+
+
+
+main:
+X__ // 100
+_X_ // 110
+CCX // 111
+XCC // 011
+CXC // 011

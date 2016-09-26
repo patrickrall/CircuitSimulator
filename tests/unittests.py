@@ -11,7 +11,7 @@ import sys
 sys.path.append(os.path.abspath("."))
 
 import numpy as np
-from libcirc.stabilizer.stabilizer import StabilizerState  # import error? try executing from root!
+from libcirc.stabilizer.stabilizer import StabilizerState  # import error? try executing from root dir!
 import json
 from datetime import datetime
 

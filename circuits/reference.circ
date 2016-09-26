@@ -27,8 +27,8 @@ ___H_
 ___S_
 __XC_
 ___H_
-CZ_M_ # Perform controlled Z, depending on a measurement
-____R # Reuse this qubit ancilla, is back in 0 state
+CZ_M_ // Perform controlled Z, depending on a measurement
+____R // Reuse this qubit ancilla, is back in 0 state
 
 CCZ:
 __H
@@ -67,11 +67,11 @@ H
 X
 H
 
-Y: # Up to a phase
+Y: // Up to a phase
 X
 Z
 
-XX: # Swap gate
+XX: // Swap gate
 CX
 XC
 CX

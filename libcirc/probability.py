@@ -18,6 +18,7 @@ import libcirc.projectors as projectors
 # config is dictionary of the following format:
 # config = {
 #     "verbose": True/False,  # print useful information
+#     "silenceprojectors": True/False, # do not print projectors despite verbose (optional)
 #     "parallel": True/False,  # run in parallel
 #     "samples": int(1e3),   # number of samples from inner product distribution
 #     "fidbound": 1e-5,   # maximum allowed inner product <L|H>
@@ -46,7 +47,7 @@ def probability(circ, measure, config):
     Hprime, v = projectors.truncate(n, H)
 
     # print projector data
-    if verbose:
+    if verbose and ("silenceprojectors" not in config or not config["silenceprojectors"]):
         print("Gadgetize circuit:")
         print("G:")
         printProjector(G)
@@ -193,7 +194,7 @@ def probability(circ, measure, config):
                 break
 
             if ("Numerator:" in line or "Denominator:" in line):
-                print(line, end="\r")
+                sys.stdout.write(line + "\r")
             else:
                 out.append(line)
         sys.stdout.write("\033[K")
@@ -220,11 +221,13 @@ def probability(circ, measure, config):
                 print(line)
 
     if verbose:
-        print("|| Gprime |H^t> ||^2 ~= ", numerator/Nsamples)
-        print("|| Hprime |H^t> ||^2 ~= ", denominator/Nsamples)
+        print("|| Gprime |H^t> ||^2 ~= " + str(numerator/Nsamples))
+        print("|| Hprime |H^t> ||^2 ~= " + str(denominator/Nsamples))
 
+    if numerator == 0: return 0  # deal with denominator == 0
     prob = 2**(v-u) * (numerator/denominator)
-    if (prob > 1): prob = 1  # no probabilities greater than 1
+    if (prob > 1):
+        prob = 1.0  # no probabilities greater than 1
     return prob
 
 

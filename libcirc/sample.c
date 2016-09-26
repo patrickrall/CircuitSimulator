@@ -222,7 +222,7 @@ int main(void){
     } else {
         for (int i = 0; i < Nsamples; i++) {
             numerator += sampleProjector(G, L, k, exact, maxthreads);
-            printf("Numerator: %d/%d samples\n", i, Nsamples);
+            printf("Numerator: %d/%d samples\n", i+1, Nsamples);
             fflush(stdout);
         }
     }
@@ -234,7 +234,7 @@ int main(void){
     } else {
         for (int i = 0; i < Nsamples; i++) {
             denominator += sampleProjector(H, L, k, exact, maxthreads);
-            printf("Denominator: %d/%d samples\n", i, Nsamples);
+            printf("Denominator: %d/%d samples\n", i+1, Nsamples);
             fflush(stdout);
         }
     }

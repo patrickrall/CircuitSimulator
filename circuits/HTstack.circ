@@ -1,19 +1,24 @@
-H # 0.5
+import reference.circ
+
+main:
+H // 0.5
 T
-H # 1st T: 0.8536
+H // 1st T: 0.8536
 T
-H # 2nd T: 0.75
+H // 2nd T: 0.75
 T 
-H # 3rd T: 0.5732
+H // 3rd T: 0.5732
+/*
 T
-H # 4th T: 0.9786
+H // 4th T: 0.9786
 T
-H # 5th T: 0.4634
+H // 5th T: 0.4634
 T
-H # 6th T: 0.9375
+H // 6th T: 0.9375
 T
-H # 7th T: 0.6433
+H // 7th T: 0.6433
 T
-H # 8th T: 0.6714
+H // 8th T: 0.6714
 T
-H # 9th T: 0.9176
+H // 9th T: 0.9176
+*/

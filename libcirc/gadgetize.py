@@ -4,7 +4,7 @@
 # output stabilizer projectors g(x,y) and h(x)
 #
 
-from libcirc.compilecirc import standardGate, removeComments
+from libcirc.compilecirc import standardGate
 import numpy as np
 
 
@@ -215,36 +215,3 @@ def expandGenerators(proj):
         newZs.append(prod[2] % 2)
 
     return (newPhases, newXs, newZs)
-
-
-def testgadgetize():
-    # read data
-    filename = "circuit/examples/compiled2.circ"
-    f = open(filename, "r")
-    circuit = removeComments(f.read())
-    f.close()
-
-    # count T gates and measurements
-    Ts, Ms, MTs = countY(circuit)
-
-    # postselect measured qubits
-    Mselect = np.random.randint(2, size=len(Ms))
-
-    # increment Ts by those depending on measurement results
-    for M in MTs:
-        idx = Ms.index(M)
-        if Mselect[idx] == 1:
-            Ts += 1
-
-    # pack measurements into dictionary
-    Mdict = {0: 1, 1: 1}
-    for M in Ms:
-        idx = Ms.index(M)
-        Mdict[M] = Mselect[idx]
-
-    # postselect ts
-    y = np.random.randint(2, size=Ts)
-
-    # obtain projectors
-    projector = gadgetize(circuit, Mdict, y)
-    print(projector)

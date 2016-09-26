@@ -9,7 +9,7 @@ import sys
 sys.path.append(os.path.abspath('.'))
 
 from libcirc.probability import probability  # import issues? see comment in file!
-from libcirc.compilecirc import compileRawCircuit, removeComments, parseReference
+from libcirc.compilecirc import compileCircuit
 # import issues? Try executing from root directory: python circuits/hiddenshift.py
 # You can also try adding the root directory to your python path.
 
@@ -18,7 +18,7 @@ from datetime import datetime
 
 # ######## CONFIG ######## #
 n = 40  # length of shift string
-toff = 2  # number of toffoli's per O_f
+toff = 1  # number of toffoli's per O_f
 randcliff = 200  # number of random Cliffords in between CCZ's
 
 # probability algorithm precision parameters
@@ -81,7 +81,8 @@ for i in range(toff):  # pick toffolis
     addCliffords()
 
 # build circuit
-circuit = ""
+circuit = "import circuits/reference.circ\n"
+circuit += "main:\n"
 
 # Hadamard all qubits
 for i in range(n):
@@ -129,10 +130,7 @@ for i in range(n):
     circuit += line + "\n"
 
 # compile
-f = open("circuits/reference.circ")
-reference = parseReference(removeComments(f.read()))
-f.close()
-compiled = compileRawCircuit(circuit, reference)
+compiled = compileCircuit(raw=circuit)
 
 # ####### INFORMATION ######## #
 # Show circuit
@@ -174,7 +172,7 @@ for i in range(n):
     print("Bit %d: %f" % (i, result))
     results.append(result)
 
-print("Time elapsed: ", str(datetime.now() - starttime))
+print("Time elapsed: " + str(datetime.now() - starttime))
 
 if plot:
     import matplotlib.pyplot as plt
