@@ -37,9 +37,9 @@ See the documentation for a complete description.
 5. Compile the code C implementation
 
   On Mac OS X and Linux simply:
-  ..1. Opening a terminal
-  ..2. Change into the root directory: `$ cd CircuitSimulator`
-  ..3. Call make: `$ make`
+  1. Opening a terminal
+  2. Change into the root directory: `$ cd CircuitSimulator`
+  3. Call make: `$ make`
 
   On Windows, use the python implementation by passing the `-py` option to `main.py` until we figure things out.
 
