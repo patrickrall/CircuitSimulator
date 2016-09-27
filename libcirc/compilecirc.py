@@ -129,6 +129,8 @@ def circuitSymbols(data, path, fname, past):
                     if depend not in output:
                         output[depend] = symbols[depend]
                         depimport.append(depend)
+                        if depend in toimport:
+                            imported.append(depend)
 
             if len(toimport) > 0 and len(toimport) != len(imported):
                 failed = ["'"+x+"'" for x in toimport if x not in imported]
