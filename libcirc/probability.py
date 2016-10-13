@@ -248,19 +248,25 @@ def sampleQubits(circ, measure, sample, config):
     # set of qubits in order to sample next one
     def recursiveSample(qubits, measure):
         if len(qubits) == 1:  # base case
+            Psofar = 1  # overridden if constraints present
+
             # is a sample even possible? Some qubit constraints are unsatisfiable.
             if len(measure.keys()) != 0:  # other measurements present
-                P = prob(measure, exact=True)
-                if verbose: print("Constraints present. Probability of satifying: %f\n" % P)
-                if P == 0: return "", {}, 0  # not satisfiable
-                if P < 1e-5:
-                    print("Warning: probability of satisfying qubit constraints very low (%f). Could be impossible." % P)
+                Psofar = prob(measure, exact=True)
+                if verbose: print("Constraints present. Probability of satifying: %f\n" % Psofar)
+                if Psofar == 0: return "", {}, 0  # not satisfiable
+                if Psofar < 1e-5:
+                    print("Warning: probability of satisfying qubit constraints very low (%f). Could be impossible." % Psofar)
 
             # compute probability
             measure[qubits[0]] = 0
-            P0 = prob(measure)
+            P = prob(measure)
+            P0 = P/Psofar
 
-            if verbose: print("Measuring qubit %d: P(0) = %f" % (qubits[0], P0))
+            if verbose:
+                print("Measuring qubit %d: P(0) = %f" % (qubits[0], P))
+                if len(measure.keys()) != 0:
+                    print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
 
             # sample
             qubit = 0 if np.random.random() < P0 else 1
