@@ -10,7 +10,7 @@ This application is written in python, a cross-platform programming language.
 A C implementation also is available for the slow part of both algorithms.
 The C implementation is used by default, but a python-only version is also available.
 
-See the documentation for a complete description.
+See the documentation for a complete description, once it is available.
 
 ## Installation
 
@@ -37,11 +37,11 @@ See the documentation for a complete description.
 5. Compile the code C implementation
 
   On Mac OS X and Linux simply:
-  1. Opening a terminal
+  1. Open a terminal
   2. Change into the root directory: `$ cd CircuitSimulator`
   3. Call make: `$ make`
 
-  On Windows, use the python implementation by passing the `-py` option to `main.py` until we figure things out.
+  On Windows, a precompiled executable is available at `libcirc/sample.exe`. Tell the `main.py` executable to use it by passing `cpath=libcirc/sample.exe` as an option. If that does not work, try the `-py` option to use the python back-end.
 
 ## Usage
 
