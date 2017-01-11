@@ -88,7 +88,7 @@ def probability(circ, measure, config):
     # verify existence of executable
     if not config["python"]:
         if not os.path.isfile(config["cpath"]):
-            print("Could not find c executable at", config["cpath"])
+            print("Could not find c executable at" + config["cpath"])
             print("Reverting to python implementation")
             config["python"] = True
 
@@ -270,7 +270,7 @@ def sampleQubits(circ, measure, sample, config):
 
             # sample
             qubit = 0 if np.random.random() < P0 else 1
-            if verbose: print("-> Sampled", qubit, "\n")
+            if verbose: print("-> Sampled" + qubit + "\n")
 
             measure[qubits[0]] = qubit
 
@@ -292,8 +292,8 @@ def sampleQubits(circ, measure, sample, config):
             # sample
             qubit = 0 if np.random.random() < P0 else 1
             if verbose:
-                print("-> Sampled", qubit)
-                print("-> Sample so far:", qubitssofar + str(qubit), "\n")
+                print("-> Sampled" + qubit)
+                print("-> Sample so far:" + qubitssofar + str(qubit) + "\n")
 
             measure[qubits[-1]] = qubit
 

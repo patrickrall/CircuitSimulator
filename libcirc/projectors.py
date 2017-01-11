@@ -73,9 +73,9 @@ def projectors(circ, measure, verbose=False, x=None, y=None):
             if i in measure:
                 mstring += str(measure[i])
             else: mstring += "_"
-        print("x:", mstring)
+        print("x: " + mstring)
 
-        print("y:", "".join(y.astype(str).tolist()))
+        print("y: " + "".join(y.astype(str).tolist()))
 
     G = gadgetize.gadgetize(circ, measure, y)
     H = gadgetize.gadgetize(circ, Mdict, y)

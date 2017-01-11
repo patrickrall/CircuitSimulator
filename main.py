@@ -77,7 +77,7 @@ def main(argv):
         config["exact"] = True
 
         P = probability(circ, measure, config)
-        print("Probability:", P)
+        print("Probability: " + str(P))
 
     else:  # algorithm 2: sample bits
         if config["verbose"]: print("Sample mode: sample marked bits")
@@ -86,10 +86,10 @@ def main(argv):
         if len(X) == 0:  # no sample possible
             print("Error: circuit output state cannot produce a measurement with these constraints.")
         else:
-            print("Sample:", X)
+            print("Sample: " + str(X))
 
     if config["verbose"]:
-        print("Time elapsed: ", str(datetime.now() - starttime))
+        print("Time elapsed: " + str(datetime.now() - starttime))
 
 
 def usage(error):
