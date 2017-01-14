@@ -8,7 +8,7 @@
 #include <gsl/gsl_complex.h>
 #include <gsl/gsl_complex_math.h>
 #include <gsl/gsl_linalg.h>
-#include "../libcirc/stabilizer/stabilizer.h"
+#include "../../libcirc/stabilizer/stabilizer.h"
 
 int readInt(FILE *fr, char *line, const int maxLineLength, int *target){
 	if(!fgets(line, maxLineLength, fr)){
@@ -72,7 +72,7 @@ void testFileExponentialSum(){
     double diff_t;
     time(&start_t);
     
-	fr = fopen("tests/tests-c/exponentialSumTests.txt", "rt");
+	fr = fopen("tests-c/exponentialSumTests.txt", "rt");
 	while(1){
 		struct StabilizerState state;
 		int eps, outEps, p, outP, m, outM;
@@ -165,7 +165,7 @@ void testFileShrink(){
     double diff_t;
     time(&start_t);
 
-	fr = fopen("tests/tests-c/shrinkTests.txt", "rt");
+	fr = fopen("tests-c/shrinkTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -343,7 +343,7 @@ void testFileInnerProduct(){
     double diff_t;
     time(&start_t);
 
-	fr = fopen("tests/tests-c/innerProductTests.txt", "rt");
+	fr = fopen("tests-c/innerProductTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state1;
@@ -524,7 +524,7 @@ void testFileExtend(){
     double diff_t;
     time(&start_t);
 
-	fr = fopen("tests/tests-c/extendTests.txt", "rt");
+	fr = fopen("tests-c/extendTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;
@@ -627,7 +627,7 @@ void testFileMeasurePauli(){
     double diff_t;
     time(&start_t);
 
-	fr = fopen("tests/tests-c/measurePauliTests.txt", "rt");
+	fr = fopen("tests-c/measurePauliTests.txt", "rt");
 	
 	while(1){
 		struct StabilizerState state;

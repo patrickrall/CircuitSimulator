@@ -644,6 +644,7 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	state->Gbar = gsl_matrix_alloc(state1->n, state1->n);
 	state->J = gsl_matrix_alloc(state1->n, state1->n);
 	deepCopyState(state, state1);
+
 	for(b=state2->k;b<state2->n;b++){
 		gsl_matrix_get_row(tempVector, state2->Gbar, b);
 		gsl_blas_ddot(state2->h, tempVector, &tempInt);
@@ -654,6 +655,7 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 			*p = 0;
 			*m = 0;
 			*ans = gsl_complex_rect(0,0);
+            return;
 		}
 	}
 	
@@ -700,8 +702,8 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	state2temp->Gbar = gsl_matrix_alloc(state2->n, state2->n);
 	state2temp->J = gsl_matrix_alloc(state2->n, state2->n);
 	deepCopyState(state2temp, state2);
-	
-	updateQD(state2temp, y);
+
+    updateQD(state2temp, y);
 	updateDJ(state2temp, R);
     gsl_vector_free(y);
     gsl_matrix_free(R);
@@ -710,7 +712,7 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
     gsl_vector_free(smallRrow);
     gsl_vector_free(tempVector);
     gsl_vector_free(tempVector1);
-	
+
 	//now q, q2 are defined in the same basis
 	state->Q = state->Q - mod(state2temp->Q, 8);
 	for(i=0;i<state->k;i++){
@@ -719,8 +721,8 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 			gsl_matrix_set(state->J, i, j, gsl_matrix_get(state->J, i, j) - mod((int)gsl_matrix_get(state2temp->J, i, j), 8));
 		}
 	}	
-	
-	if(exact == 0){
+
+    if(exact == 0){
 		exponentialSum(state, eps, p, m, ans, 0);
 		*ans = gsl_complex_mul_real(*ans, pow(2, -((double)state1->k + (double)state2temp->k)/2));
 	}
@@ -1143,9 +1145,6 @@ double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_
 	return pow(2, -0.5);
 }
 
-//void allocStabilizerState(n, k) {
-//    return NULL;
-//}
 
 void freeStabilizerState(struct StabilizerState *state) {
     gsl_vector_free(state->h);
@@ -1156,4 +1155,66 @@ void freeStabilizerState(struct StabilizerState *state) {
     gsl_matrix_free(state->J);
 
     free(state);
+}
+
+
+void printStabilizerState(struct StabilizerState *state) {
+    printf("state.n = %d\n", state->n);
+    printf("state.k = %d\n", state->k);
+    
+    printf("state.h = np.array([");
+    for (int i = 0; i<state->n; i++) {
+        printf("%d", (int)gsl_vector_get(state->h, i));
+        if (i+1 != state->n) printf(",");
+    }
+    printf("])\n");
+
+    printf("state.G = np.array([");
+    for (int i = 0; i<state->n; i++) {
+        printf("[");
+        for (int j = 0; j<state->n; j++) {
+            printf("%d", (int)gsl_matrix_get(state->G, i, j));
+            if (j+1 != state->n) printf(",");
+        }
+        printf("]");
+        if (i+1 != state->n) printf(",");
+    }
+    printf("])\n");
+   
+    printf("state.Gbar = np.array([");
+    for (int i = 0; i<state->n; i++) {
+        printf("[");
+        for (int j = 0; j<state->n; j++) {
+            printf("%d", (int)gsl_matrix_get(state->Gbar, i, j));
+            if (j+1 != state->n) printf(",");
+        }
+        printf("]");
+        if (i+1 != state->n) printf(",");
+    }
+    printf("])\n");
+
+    printf("state.Q = %d\n", state->Q);
+
+    printf("state.D = np.array([");
+    for (int i = 0; i<state->k; i++) {
+        printf("%d", (int)gsl_vector_get(state->D, i));
+        if (i+1 != state->k) printf(",");
+    }
+    printf("])\n");
+
+    if (state->k == 0) {
+        printf("state.J = np.zeros((0,0))");
+    } else {
+        printf("state.J = np.array([");
+        for (int i = 0; i<state->k; i++) {
+            printf("[");
+            for (int j = 0; j<state->k; j++) {
+                printf("%d", (int)gsl_matrix_get(state->J, i, j));
+                if (j+1 != state->k) printf(",");
+            }
+            printf("]");
+            if (i+1 != state->k) printf(",");
+        }
+        printf("])\n");
+    }
 }

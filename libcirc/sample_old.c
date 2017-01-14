@@ -3,7 +3,6 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include <string.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_math.h>
@@ -11,7 +10,6 @@
 #include <gsl/gsl_complex_math.h>
 #include <gsl/gsl_linalg.h>
 #include "stabilizer/stabilizer.h"
-#include "mpi.h"
 #include <pthread.h>
 
 #include <gsl/gsl_errno.h>
@@ -26,12 +24,12 @@ struct Projector {
 };
 
 /* some prototypes */
-struct Projector* readProjector(FILE* stream);
+struct Projector* readProjector(void);
 void decompose(gsl_matrix **L, double *norm, const int t, int *k, 
 		const double fidbound, short *exact, const short rank, const short fidelity);
 double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short exact, const int maxthreads);
 
-/* for verifying input */
+/* for debugging, remove later */
 void printProjector(struct Projector *P) {
     for (int i = 0; i < P->Nstabs; i++) {
         int tmpphase = (int)gsl_vector_get(P->phases, i);
@@ -79,83 +77,130 @@ void printProjector(struct Projector *P) {
 int main(void){
     gsl_set_error_handler_off();
 
-    int print = 0;
+    int debug = 0; 
+    int print = 1;
 
-    if (print) printf("C backend print mode is on.\n");
-
-    /************* Determine data source: file or stdin *************/
-
-    char file[256] = "";
-    scanf("%s", file);
-    
-    FILE* stream;
-    if (strlen(file) == 0 || strcmp(file, "none") == 0) {
-        if (print) printf("Reading arguments from stdin\n");
-        stream = stdin;
-    } else {
-        if (print) printf("Reading arguments from file: %s\n", file);
-        stream = fopen(file, "r");
-        if (stream == NULL) {
-            printf("Error reading file.\n");
-            return -1;
-        }
-    }
+    if (print) printf("C backend print mode is on. Arguments:");
 
     /************* Parse args for decompose *************/
     int t;
-    fscanf(stream,"%d", &t);
+    if (!debug) scanf("%d", &t);
+    // else t = 3;
+     else t = 1;
     if (print) printf("t: %d\n", t);
 
     int k;
-    fscanf(stream,"%d", &k);  
+    if (!debug) scanf("%d", &k);  
+    else k = 0;
     if (print) printf("k: %d\n", k);
 
     double fidbound;
-    fscanf(stream,"%lf", &fidbound);
+    if (!debug) scanf("%lf", &fidbound);
+    else fidbound = 0.001;
     if (print) printf("fidbound: %f\n", fidbound);
 
     short exact;
-    fscanf(stream,"%hd", &exact); 
+    if (!debug) scanf("%hd", &exact); 
+    else exact = 1;
     if (print) printf("exact: %d\n", exact);
 
     short rank;
-    fscanf(stream,"%hd", &rank);
+    if (!debug) scanf("%hd", &rank);
+    else rank = 1;
     if (print) printf("rank: %d\n", rank);
 
     short fidelity;
-    fscanf(stream,"%hd", &fidelity); 
+    if (!debug) scanf("%hd", &fidelity); 
+    else fidelity = 1;
     if (print) printf("fidelity: %d\n", fidelity);
 
     /************* Parse args for main proc *************/
 
     struct Projector *G;
     struct Projector *H;
-    G = readProjector(stream);
-    H = readProjector(stream);
-   
+    if (!debug) {
+        G = readProjector();
+        H = readProjector();
+    } else {
+        G = (struct Projector *)malloc(sizeof(struct Projector));
+        H = (struct Projector *)malloc(sizeof(struct Projector));
+       
+        
+        G->Nstabs = 3;
+        H->Nstabs = 2;
+        G->Nqubits = 3;
+        H->Nqubits = 3;
+        
+
+        /*
+        G->Nstabs = 1;
+        H->Nstabs = 0;
+        G->Nqubits = 1;
+        H->Nqubits = 1;
+        */
+            
+        G->phases = gsl_vector_alloc(G->Nstabs);
+        G->xs = gsl_matrix_alloc(G->Nstabs, G->Nqubits);
+        G->zs = gsl_matrix_alloc(G->Nstabs, G->Nqubits);
+
+        H->phases = gsl_vector_alloc(H->Nstabs);
+        H->xs = gsl_matrix_alloc(H->Nstabs, H->Nqubits);
+        H->zs = gsl_matrix_alloc(H->Nstabs, H->Nqubits);
+       
+        int v;
+        int idx = 0;
+
+        int Gvals[] = {1,1,1,0,1,0,1,2,0,1,1,0,0,1,1,0,0,1,1,1,0};
+        // int Gvals[] = {0, 1};
+        for (int i = 0; i < G->Nstabs; i++) {
+            v = Gvals[idx++];
+            gsl_vector_set(G->phases, i, (double)v);
+            for (int j = 0; j < G->Nqubits; j++) {
+                v = Gvals[idx++];
+                gsl_matrix_set(G->xs, i, j, (double)v);
+                v = Gvals[idx++];
+                gsl_matrix_set(G->zs, i, j, (double)v);
+            }
+        }
+
+        int Hvals[] = {1,1,1,0,1,0,1,1,0,0,1,1,1,0};
+        //int Hvals[] = {};
+        idx = 0;
+        for (int i = 0; i < H->Nstabs; i++) {
+            v = Hvals[idx++];
+            gsl_vector_set(H->phases, i, (double)v);
+            for (int j = 0; j < H->Nqubits; j++) {
+                v = Hvals[idx++];
+                gsl_matrix_set(H->xs, i, j, (double)v);
+                v = Hvals[idx++];
+                gsl_matrix_set(H->zs, i, j, (double)v);
+            }
+        }
+    }
     if (print) printf("Proj: G\n");
     if (print) printProjector(G);
     if (print) printf("Proj: H\n");
     if (print) printProjector(H);
 
     int Nsamples;
-    fscanf(stream,"%d", &Nsamples);
+    if (!debug) scanf("%d", &Nsamples);
+    else Nsamples = 5000;
     if (print) printf("Nsamples: %d\n", Nsamples);
 
     int maxthreads;
-    fscanf(stream,"%d", &maxthreads); 
+    if (!debug) scanf("%d", &maxthreads); 
+    else maxthreads = 1;
     if (maxthreads < 1) maxthreads = 1;
 
     if (print) printf("maxthreads: %d\n", maxthreads);
+
     
 	if (print) printf("Finished reading input.\n");
 
     /************* Get L, using decompose *************/
-    
-    int seed = (int)time(NULL);
-    if (print) printf("seed: %d\n", seed);
-    srand(seed); // set random seed
-    //srand(1484339080);
+
+    srand(time(NULL)); // set random seed
+    //srand(0);
 
     gsl_matrix *L = NULL;
     double Lnorm;
@@ -197,14 +242,15 @@ int main(void){
     }
     if (print) printf("Calculated H\n");
 
-    if (print == 1) {
+    if (debug == 1) {
         printf("|| Gprime |H^t> ||^2 ~= %f\n", numerator/Nsamples);
         printf("|| Hprime |H^t> ||^2 ~= %f\n", denominator/Nsamples);
+
         if (denominator > 0) printf("Output: %f\n", numerator/denominator);
-    } 
-    
-    printf("%f\n", numerator/Nsamples);
-    printf("%f\n", denominator/Nsamples);
+    } else {
+        printf("%f\n", numerator/Nsamples);
+        printf("%f\n", denominator/Nsamples);
+    }
 
     free(G);
     free(H);
@@ -213,24 +259,24 @@ int main(void){
 
 
 /************* Helper for reading projectors *************/
-struct Projector* readProjector(FILE* stream) {
+struct Projector* readProjector(void) {
     struct Projector *P = (struct Projector *)malloc(sizeof(struct Projector));
-    fscanf(stream,"%d", &(P->Nstabs));
-    fscanf(stream,"%d", &(P->Nqubits));
+    scanf("%d", &(P->Nstabs));
+    scanf("%d", &(P->Nqubits));
     P->phases = gsl_vector_alloc(P->Nstabs);
     P->xs = gsl_matrix_alloc(P->Nstabs, P->Nqubits);
     P->zs = gsl_matrix_alloc(P->Nstabs, P->Nqubits);
     
     int v;
     for (int i = 0; i < P->Nstabs; i++) {
-        fscanf(stream,"%d", &v);
+        scanf("%d", &v);
         gsl_vector_set(P->phases, i, (double)v);
 
         for (int j = 0; j < P->Nqubits; j++) {
-            fscanf(stream,"%d", &v);
+            scanf("%d", &v);
             gsl_matrix_set(P->xs, i, j, (double)v);
             
-            fscanf(stream,"%d", &v);
+            scanf("%d", &v);
             gsl_matrix_set(P->zs, i, j, (double)v);
         }
     }
@@ -500,13 +546,14 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 	phi->J = gsl_matrix_alloc(phi->n, phi->n);
 	gsl_matrix_set_zero(phi->J);
 
-    // set J matrix
+
 	for(int j=0;j<size;j++){
-		if(bits[j] == '0' && !(t%2 && j==size-1)){
+		if(bits[j] == '0' && !(size%2 && j==size-1)){
 			gsl_matrix_set(phi->J, j*2+1, j*2, 4);
 			gsl_matrix_set(phi->J, j*2, j*2+1, 4);
 		}
 	}
+
 
 	gsl_vector *tempVector, *zeroVector;
 	tempVector = gsl_vector_alloc(t);
@@ -516,7 +563,7 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 	for(int j=0;j<size;j++){
 		gsl_vector_set_zero(tempVector);
 		
-		if(t%2 && j==size-1){
+		if(size%2 && j==size-1){
 			
 			gsl_vector_set(tempVector, t-1, 1);
 			
@@ -541,6 +588,8 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 		measurePauli(phi, 0, zeroVector, tempVector);	//measure XX
 		measurePauli(phi, 0, tempVector, zeroVector);	//measure ZZ
 	}
+	
+    //printf("Theta: %d, [%d], [[%d]], [[%d]], %d, [%d], [%d]\n", theta->k, (int)gsl_vector_get(theta->h, 0) ,(int)gsl_matrix_get(theta->G, 0, 0), (int)gsl_matrix_get(theta->Gbar, 0, 0), theta->Q, (int)gsl_vector_get(theta->D, 0), (int)gsl_matrix_get(theta->J, 0, 0));
 
 	// int *eps, *p, *m;
 	int eps;
@@ -602,6 +651,7 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
         return sum/(1 + (double)P->Nstabs);
     }
 
+    
 
     // Sample random stabilizer state
 	struct StabilizerState *theta = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
@@ -674,7 +724,5 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const short ex
     freeStabilizerState(theta);
     gsl_vector_free(zeta);
     gsl_vector_free(xi);
-
-    double out = pow(2, t) * gsl_complex_abs2(gsl_complex_mul_real(total, projfactor));
-    return out;
+    return pow(2, t) * gsl_complex_abs2(gsl_complex_mul_real(total, projfactor));
 }

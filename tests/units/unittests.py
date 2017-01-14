@@ -15,7 +15,7 @@ from libcirc.stabilizer.stabilizer import StabilizerState  # import error? try e
 import json
 from datetime import datetime
 
-directory = "tests/tests-python/"
+directory = "tests/units/tests-python/"
 
 # ------------------ Helper Funcs ---------------
 
@@ -45,6 +45,7 @@ def compare(state, psi):
         if not np.allclose(state.D, np.array(psi["D"])[:state.k]): return False, "D"
         if not np.allclose(state.J, np.array(psi["J"])[:state.k, :state.k]*4): return False, "J"
     return True, ""
+
 
 # ---------------- ExponentialSum ---------------
 

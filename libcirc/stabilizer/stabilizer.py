@@ -31,6 +31,19 @@ class StabilizerState:
         self.D = np.zeros(k)        # in {0,2,4,6}^k
         self.J = np.zeros((k, k))   # in {0,4}^{k\times k}, symmetric
 
+    def print(self):
+        print("n = " + str(self.n))
+        print("k = " + str(self.k))
+        print("h = " + str(self.h).replace(" ","").replace(".",""))
+        print("G = " + str(self.G).replace(" ","").replace(".","").replace("]]","]").replace("[[","\n["))
+        print("Gbar = " + str(self.Gbar).replace(" ","").replace(".","").replace("]]","]").replace("[[","\n["))
+        print("Q = "+str(self.Q))
+        print("D = " + str(self.D).replace(" ","").replace(".",""))
+
+        if (self.k > 0):
+            print("J = " + str(self.J).replace(" ","").replace(".","").replace("]]","]").replace("[[","\n["))
+        else: print("J = ")
+
     # -------------- State Vector ------------------
 
     # bring into state vector format
@@ -309,22 +322,22 @@ class StabilizerState:
 
         y = np.dot(state2.Gbar[:state2.k, :], (state.h + state2.h)) % 2
         R = np.dot(state.G[:state.k:, :], state2.Gbar[:state2.k, :].T) % 2
-        R = np.vstack((R, np.zeros(state2.k)))
+
+        # R is now k by k_2. Since k <= k_2,
+        # pad R with zeros to make it square
+        while R.shape[0] < R.shape[1]:
+            R = np.vstack((R, np.zeros(state2.k)))
 
         # need a copy of state2 that I can mutate
         state2 = deepcopy(state2)
-
-        # Does not affect anything
-        # state2.h += np.dot(y, state2.G[:state2.k]).astype(int)
-        # state2.h = state2.h % 2
 
         state2.updateQD(y)
         state2.updateDJ(R)
 
         # now q, q2 are defined in the same basis
-        state.Q -= state2.Q % 8
-        state.D -= (state2.D[:state.k] % 8).astype(int)
-        state.J -= state2.J[:state.k, :state.k].astype(int) % 8
+        state.Q = (state.Q - state2.Q) % 8
+        state.D = ((state.D - state2.D[:state.k]) % 8).astype(int)
+        state.J = (state.J - state2.J[:state.k, :state.k]).astype(int) % 8
 
         if not exact: return (2**(-(state1.k + state2.k)/2)) * state.exponentialSum()
         else:

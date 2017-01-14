@@ -9,24 +9,32 @@ from multiprocessing import Pool
 from libcirc.stabilizer.stabilizer import StabilizerState
 
 
-def decompose(t, fidbound, k, exact, rank, fidelity):
+# Needs from config dict: fidbound, k, exact, rank, fidelity
+def decompose(t, config):
     # trivial case
     if t == 0:
         return np.array([[]]), 1
 
     v = np.cos(np.pi/8)
 
+    # exact case
+    norm = (2)**(np.floor(t/2)/2)
+    if (t % 2 == 1): norm *= (2*v)
+    if config.get("exact"): return None, norm
+
+    k = config.get("k")
     forceK = (k is not None)  # Was k selected by the user
 
     if k is None:
+        if config.get("fidbound") is None:
+            raise ValueError("Need to specify either k or fidbound, or set exact=True to determine sampling method.")
         # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
-        k = np.ceil(1 - 2*t*np.log2(v) - np.log2(fidbound))
+        k = np.ceil(1 - 2*t*np.log2(v) - np.log2(config.get("fidbound")))
     k = int(k)
 
     # can achieve k = t/2 by pairs of stabilizer states
-    if exact or (k > t/2 and not forceK):
-        norm = (2)**(np.floor(t/2)/2)
-        if (t % 2 == 1): norm *= (2*v)
+    # revert to exact norm
+    if k > t/2 and not forceK:
         return None, norm
 
     # prevents infinite loops
@@ -37,17 +45,20 @@ def decompose(t, fidbound, k, exact, rank, fidelity):
     innerProd = 0
     Z_L = None
 
-    while innerProd < 1-fidbound:
+    if config.get("fidelity") and config.get("fidbound") is None:
+            raise ValueError("If fidelity=true then fidbound must be set.")
+
+    while not config.get("fidelity") or innerProd < 1-config.get("fidbound"):
 
         L = np.random.random_integers(0, 1, (k, t))
 
-        if (rank):
+        if (config.get("rank")):
             # check rank
             if (np.linalg.matrix_rank(L) < k):
                 print("L has insufficient rank. Sampling again...")
                 continue
 
-        if fidelity:
+        if config.get("fidelity"):
             # compute Z(L) = sum_x 2^{-|x|/2}
             Z_L = 0
             for i in range(2**k):
@@ -59,13 +70,13 @@ def decompose(t, fidbound, k, exact, rank, fidelity):
             if forceK:
                 print("Inner product <H^t|L>: %f" % innerProd)
                 break
-            elif innerProd < 1-fidbound:
+            elif innerProd < 1-config.get("fidbound"):
                 print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
             else:
                 print("Inner product <H^t|L>: %f" % innerProd)
         else: break
 
-    if fidelity:
+    if config.get("fidelity"):
         norm = np.sqrt(2**k * Z_L)
         return L, norm
     else:
@@ -116,9 +127,9 @@ def evalHcomponent(args):
     # initialize stabilizer state
     phi = StabilizerState(t, t)
 
+    # set J matrix
     for idx in range(size):
         bit = int(bits[idx])
-
         if bit == 0 and not (odd and idx == size-1):
             # phi.J = np.array([[0, 4], [4, 0]])
             phi.J[idx*2+1, idx*2] = 4
@@ -146,7 +157,8 @@ def evalHcomponent(args):
         phi.measurePauli(0, np.zeros(t), vec)  # measure XX
         phi.measurePauli(0, vec, np.zeros(t))  # measure ZZ
 
-    return StabilizerState.innerProduct(theta, phi)
+    innerProd = StabilizerState.innerProduct(theta, phi)
+    return innerProd
 
 
 # Evaluate || <theta| P |H^t> ||^2 for a random stabilizer state theta.
@@ -190,8 +202,6 @@ def sampleProjector(args):
         func = evalLcomponent
         size = len(L)
 
-    parallel = False
-
     if parallel:  # parallelize for large enough L
         pool = Pool()
         total = sum(pool.map(func, [(i, L, theta, t) for i in range(0, 2**size)]))
@@ -200,4 +210,5 @@ def sampleProjector(args):
     else:
         total = sum(map(func, [(i, L, theta, t) for i in range(0, 2**size)]))
 
-    return 2**t * np.abs(projfactor*total)**2
+    out = 2**t * np.abs(projfactor*total)**2
+    return out

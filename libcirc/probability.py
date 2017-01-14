@@ -15,39 +15,64 @@ import libcirc.projectors as projectors
 
 
 # calculate probability that a compiled circuit yields a measurement
-# config is dictionary of the following format:
+# circ is a compiled quantum circuit.
+#
+# measure is a dictionary with zero-indexed qubit indexes and measurement values.
+# E.g. to calculate the probabilty of measuring 1 for the first qubit use {0:1}
+#
+# samples governs the accuracy. 1e4 gives error < 0.01 with 95% chance.
+#
+# config is dictionary with several optional parameters. Some are optional
+# because they have no effect, some are optional because of default values.
+# Read below for details. The value in the comment is the default value.
 # config = {
-#     "verbose": True/False,  # print useful information
-#     "silenceprojectors": True/False, # do not print projectors despite verbose (optional)
-#     "parallel": True/False,  # run in parallel
-#     "samples": int(1e3),   # number of samples from inner product distribution
-#     "fidbound": 1e-5,   # maximum allowed inner product <L|H>
+#         Logging parameters
+#     "verbose": False,  # print useful information
+#     "silenceprojectors": False, # do not print projectors despite verbosity
+#     "direct": False, # returns tuple (numerator, denominator) rather than the ratio
+#
+#         Sampling method specification parameters.
+#         exact overrides k, k overrides fidbound.
+#         If exact=False then at least one of k or fidbound must be set.
+#         fidelity=True is ignored if exact=True or k is set.
+#     "exact": True,   # Use |H> instead of |L>
+#     "fidbound": 1e-5, # inner product <L|H> must be this close to 1
 #     "k": None,   # size of L matrix defining |L>
-#     "exact": False,   # Use |H> instead of |L>
-#     "rank": False,   # Verify rank of L matrix (expensive)
-#     "fidelity": False,   # Calculate inner product <L|H>
-#     "y": "000",   # Specify postselected T measurements
-#     "x": None,   # Specify postselected other measurements
+#     "fidelity": False,   # Calculate and verify inner product <L|H>
+#     "rank": False,   # Verify rank of L matrix (very expensive)
+#
+#         Backend configuration.
+#         If python=False, then cpath must be specified. Default value of
+#         cpath should be good if executing from the repo root directory.
 #     "python": False,  # Use python backend
-#     "cpath": os.getcwd() + "/../c/sample",  # Location of c executable
+#     "cpath": "libcirc/sample",  # Location of c executable
+#     "parallel": True,  # run in parallel
+#
+#         Debug. x and y determine the projectors, but are arbitrary in the end.
+#         If unspecified they are selected at random, as required by the sampling algorithm.
+#     "x": None,   # Specify postselected other measurements
+#     "y": None,   # Specify postselected T measurements
 # }
 # For more details see the command line's help text or the documentation
-def probability(circ, measure, config):
+def probability(circ, measure, samples=1e4, config={}):
 
-    # unpack
-    verbose = config["verbose"]
-    parallel = config["parallel"]
-    Nsamples = config["samples"]
+    # unpack, configure default values
+    verbose = config.get("verbose")
+    if config.get("exact") is None: config["exact"] = True
+    if config.get("fidbound") is None: config["fidbound"] = 1e-5
+    if config.get("cpath") is None: config["cpath"] = "libcirc/sample"
+    if config.get("parallel") is None: config["parallel"] = True
+    samples = int(samples)
 
     # get projectors
-    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, x=config["x"], y=config["y"])
+    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, x=config.get("x"), y=config.get("y"))
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
     Hprime, v = projectors.truncate(n, H)
 
     # print projector data
-    if verbose and ("silenceprojectors" not in config or not config["silenceprojectors"]):
+    if verbose and not config.get("silenceprojectors"):
         print("Gadgetize circuit:")
         print("G:")
         printProjector(G)
@@ -86,60 +111,67 @@ def probability(circ, measure, config):
         config["exact"] = True
 
     # verify existence of executable
-    if not config["python"]:
-        if not os.path.isfile(config["cpath"]):
-            print("Could not find c executable at" + config["cpath"])
+    if not config.get("python"):
+        if config.get("cpath") is None:
+            print("C executable unspecified. Reverting to python implementation.")
+            config["python"] = True
+
+        elif not os.path.isfile(config.get("cpath")):
+            print("Could not find c executable at: " + config.get("cpath"))
             print("Reverting to python implementation")
             config["python"] = True
 
-    if config["python"]:  # python backend
+    # ------------------------------------ Python backend ------------------------------------
+    if config.get("python"):
         # calculate |L> ~= |H>
-        L, Lnorm = decompose(t, config["fidbound"], config["k"], config["exact"], config["rank"], config["fidelity"])
+        L, Lnorm = decompose(t, config)
 
-        if verbose and L is None:
-            print("Using exact decomposition of |H^t>: 2^%d" % t)
-        elif verbose:
-            print("Stabilizer rank of |L>: 2^%d" % len(L))
+        if verbose:
+            if L is None: print("Using exact decomposition of |H^t>: 2^%d" % t)
+            else: print("Stabilizer rank of |L>: 2^%d" % len(L))
 
         # parallelization over samples, or over elements of |L>?
-        # Can't do both because of yucky "child thread of child thread" handling
-        if L is None:
-            Lparallel = 2**(np.ceil(t/2)) > Nsamples
+        # Can't do both because of "child thread of child thread" handling
+        if not config.get("parallel"):
+            SampleParallel = False
+            Lparallel = False
         else:
-            Lparallel = 2**len(L) > Nsamples
-        if not parallel: Lparallel = False
+            if L is None: Lparallel = 2**(np.ceil(t/2)) > samples
+            else: Lparallel = 2**len(L) > samples
+            SampleParallel = not Lparallel
 
         # helper for preventing needless sampling trivial projectors or circuits
-        def calcProjector(P, Lparallel, pool=False):
-            if Lnorm is not None and (len(P[0]) == 0 or len(P[1][0]) == 0):
-                # empty projector or Clifford circuit. No sampling needed.
-                return Nsamples * sampleProjector((P, L, 0, False)) * np.abs(Lnorm)**2
+        def calcProjector(P, pool=None):
 
-            queries = [(P, L, seed, Lparallel) for seed in range(0, Nsamples)]
-            if pool is not False: return sum(pool.map(sampleProjector, queries))
+            if Lnorm is not None and (len(P[0]) == 0 or len(P[1][0]) == 0):
+                # empty projector or Clifford circuit. No repeated sampling needed.
+                return samples * sampleProjector((P, L, 0, False)) * np.abs(Lnorm)**2
+
+            queries = [(P, L, seed, Lparallel) for seed in range(0, samples)]
+
+            if pool is not None: return sum(pool.map(sampleProjector, queries))
             return sum(map(sampleProjector, queries))
 
         # calculate || Gprime |L> ||^2 and || Hprime |L> ||^2 up to a constant
-        if parallel and not Lparallel:
-            if verbose: print("Parallelizing over %d samples" % Nsamples)
-
+        if SampleParallel:
+            if verbose: print("Parallelizing over %d samples" % samples)
             # set up thread pool
             pool = Pool()
+        else:
+            if verbose and Lparallel:
+                if L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
+                else: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
+            pool = None
 
-            numerator = calcProjector(Gprime, False, pool=pool)
-            denominator = calcProjector(Hprime, False, pool=pool)
+        numerator = calcProjector(Gprime, pool=pool)
+        denominator = calcProjector(Hprime, pool=pool)
 
+        if SampleParallel:
             pool.close()
             pool.join()
 
-        else:
-            if verbose and Lparallel and L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
-            elif verbose and Lparallel: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
-
-            numerator = calcProjector(Gprime, Lparallel)
-            denominator = calcProjector(Hprime, Lparallel)
-
-    else:  # c backend
+    else:
+        # --------------------------------------- C backend --------------------------------------
         def send(s):
             return (str(s) + "\n").encode()
 
@@ -161,27 +193,24 @@ def probability(circ, measure, config):
 
         p = Popen(config["cpath"], stdin=PIPE, stdout=PIPE, stderr=PIPE, bufsize=1)
 
-        indat = b""
+        indat = b"none\n"
 
         indat += send(len(Gprime[1][0]))  # t
-        if config["k"] is None: indat += send(0)  # k
+        if config.get("k") is None: indat += send(0)  # k
         else: indat += send(config["k"])  # k
-        indat += send(config["fidbound"])  # fidbound
-        indat += send(1 if config["exact"] else 0)  # exact
-        indat += send(1 if config["rank"] else 0)  # rank
-        indat += send(1 if config["fidelity"] else 0)  # fidelity
+        indat += send(config.get("fidbound") if config.get("fidbound") else 1e-5)  # fidbound
+        indat += send(1 if config.get("exact") else 0)  # exact
+        indat += send(1 if config.get("rank") else 0)  # rank
+        indat += send(1 if config.get("fidelity") else 0)  # fidelity
 
         indat += writeProjector(Gprime)
         indat += writeProjector(Hprime)
 
-        indat += send(Nsamples)  # Nsamples
-        if config["parallel"]:
+        indat += send(samples)  # samples
+        if config.get("parallel"):
             indat += send(int(cpu_count()))
         else:
             indat += send(1)  # one core
-
-        # out = p.communicate(input=indat)
-        # out = out[0].decode().splitlines()
 
         p.stdin.write(indat)
         p.stdin.flush()
@@ -220,9 +249,14 @@ def probability(circ, measure, config):
             for line in out[:-2]:
                 print(line)
 
+    # ------------------ end backend-dependent code ------------------
+
     if verbose:
-        print("|| Gprime |H^t> ||^2 ~= " + str(numerator/Nsamples))
-        print("|| Hprime |H^t> ||^2 ~= " + str(denominator/Nsamples))
+        print("|| Gprime |H^t> ||^2 ~= " + str(numerator/samples))
+        print("|| Hprime |H^t> ||^2 ~= " + str(denominator/samples))
+
+    if config.get("direct"):
+        return (numerator, denominator)
 
     if numerator == 0: return 0  # deal with denominator == 0
     prob = 2**(v-u) * (numerator/denominator)
@@ -231,16 +265,21 @@ def probability(circ, measure, config):
     return prob
 
 
-# sample from a set of qubits
-def sampleQubits(circ, measure, sample, config):
+# sample output from a subset of the qubits
+# arguments are same as in probability
+# sample is a list of integer indexes, with 0 being the first qubit.
+#
+# if config["exact"] is unspecified, the default is now False
+def sampleQubits(circ, measure, sample, samples=1e4, config={}):
     # unpack config
-    verbose = config["verbose"]
+    verbose = config.get("verbose")
+    if config.get("exact") is None: config["exact"] = False
 
     def prob(measure, exact=None):  # shortcut
         if exact is not None:
             old = config["exact"]
             config["exact"] = exact
-        P = probability(circ, measure, config=config)
+        P = probability(circ, measure, samples=samples, config=config)
         if exact is not None: config["exact"] = old
         return P
 
@@ -270,7 +309,7 @@ def sampleQubits(circ, measure, sample, config):
 
             # sample
             qubit = 0 if np.random.random() < P0 else 1
-            if verbose: print("-> Sampled" + qubit + "\n")
+            if verbose: print("-> Sampled " + str(qubit) + "\n")
 
             measure[qubits[0]] = qubit
 
