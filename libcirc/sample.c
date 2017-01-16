@@ -251,6 +251,11 @@ void decompose(gsl_matrix **L, double *norm, const int t, int *k,
 		return;
 	}
 	
+    //exact case
+    *norm = pow(2, floor((float)t/2)/2);
+	if (t % 2) *norm *= 2*v;
+    if (*exact) return
+
 	double v = cos(M_PI/8);
 
 	short forceK = 1;
@@ -261,10 +266,8 @@ void decompose(gsl_matrix **L, double *norm, const int t, int *k,
 	}
 	
 	//can achieve k = t/2 by pairs of stabilizer states
-	if(*exact || (*k > t/2 && !forceK)){
+	if(*k > t/2 && !forceK){
         *exact = 1;
-		*norm = pow(2, floor((float)t/2)/2);
-		if (t % 2) *norm *= 2*v;
 		return;
 	}
 	

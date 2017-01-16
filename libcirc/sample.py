@@ -9,8 +9,11 @@ from multiprocessing import Pool
 from libcirc.stabilizer.stabilizer import StabilizerState
 
 
-# Needs from config dict: fidbound, k, exact, rank, fidelity
+# Needs from config dict: fidbound, k, exact, rank, fidelity, verbose, forceL
 def decompose(t, config):
+    quiet = config.get("quiet")
+    verbose = config.get("verbose")
+
     # trivial case
     if t == 0:
         return np.array([[]]), 1
@@ -30,16 +33,18 @@ def decompose(t, config):
             raise ValueError("Need to specify either k or fidbound, or set exact=True to determine sampling method.")
         # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
         k = np.ceil(1 - 2*t*np.log2(v) - np.log2(config.get("fidbound")))
+        if verbose: print("Autopicking k = %d." % k)
     k = int(k)
 
     # can achieve k = t/2 by pairs of stabilizer states
     # revert to exact norm
-    if k > t/2 and not forceK:
+    if k > t/2 and not forceK and not config.get("forceL"):
+        if verbose: print("k > t/2. Reverting to exact decomposition.")
         return None, norm
 
     # prevents infinite loops
     if (k > t):
-        if (forceK): print("Can't have k > t. Setting k to %d." % t)
+        if forceK and not quiet: print("Can't have k > t. Setting k to %d." % t)
         k = t
 
     innerProd = 0
@@ -55,7 +60,7 @@ def decompose(t, config):
         if (config.get("rank")):
             # check rank
             if (np.linalg.matrix_rank(L) < k):
-                print("L has insufficient rank. Sampling again...")
+                if not quiet: print("L has insufficient rank. Sampling again...")
                 continue
 
         if config.get("fidelity"):
@@ -101,16 +106,14 @@ def evalLcomponent(args):
     # initialize stabilizer state
     phi = StabilizerState(t, t)
 
-    # construct state by measuring paulis
+    # construct state using shrink
     for xtildeidx in range(t):
-        vec = np.zeros(t)
-        vec[xtildeidx] = 1
-        if bitstring[xtildeidx] == 1:
-            # |+> at index, so measure X
-            phi.measurePauli(0, np.zeros(t), vec)
-        else:
-            # |0> at index, so measure Z
-            phi.measurePauli(0, vec, np.zeros(t))
+        if bitstring[xtildeidx] == 0:
+            vec = np.zeros(t)
+            vec[xtildeidx] = 1
+            phi.shrink(vec, 0)
+            # |0> at index, inner prod with 1 is 0
+        # |+> at index -> do nothing
 
     return StabilizerState.innerProduct(theta, phi)
 
@@ -127,6 +130,9 @@ def evalHcomponent(args):
     # initialize stabilizer state
     phi = StabilizerState(t, t)
 
+    # bit = 1 corresponds to |00> + |11> state
+    # bit = 0 corresponds to |00> + |01> + |10> - |11>
+
     # set J matrix
     for idx in range(size):
         bit = int(bits[idx])
@@ -135,27 +141,24 @@ def evalHcomponent(args):
             phi.J[idx*2+1, idx*2] = 4
             phi.J[idx*2, idx*2+1] = 4
 
+    # truncate affine space using shrink
     for idx in range(size):
         bit = int(bits[idx])
         vec = np.zeros(t)
 
         if odd and idx == size-1:
-            vec[t-1] = 1
-            # last qubit: |H> = (1/2v)(|0> + |+>)
-            if bit == 0:
-                phi.measurePauli(0, vec, np.zeros(t))  # |0>, measure Z
-            else:
-                phi.measurePauli(0, np.zeros(t), vec)  # |+>, measure X
-
+            # bit = 0 is |+>
+            # bit = 1 is |0>
+            if bit == 1:
+                vec[t-1] = 1
+                phi.shrink(vec, 0)
             continue
 
-        if bit == 0: continue
+        if bit == 1:
+            vec[idx*2] = 1
+            vec[idx*2+1] = 1
+            phi.shrink(vec, 0)  # only 00 and 11 have inner prod 0 with 11
 
-        vec[idx*2+1] = 1
-        vec[idx*2] = 1
-
-        phi.measurePauli(0, np.zeros(t), vec)  # measure XX
-        phi.measurePauli(0, vec, np.zeros(t))  # measure ZZ
 
     innerProd = StabilizerState.innerProduct(theta, phi)
     return innerProd

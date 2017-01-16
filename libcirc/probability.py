@@ -29,10 +29,14 @@ import libcirc.projectors as projectors
 #         Logging parameters
 #     "verbose": False,  # print useful information
 #     "silenceprojectors": False, # do not print projectors despite verbosity
+#     "quiet": False, # silence all warning messages. Overridden by verbose.
 #     "direct": False, # returns tuple (numerator, denominator) rather than the ratio
 #
 #         Sampling method specification parameters.
 #         exact overrides k, k overrides fidbound.
+#         exact=True by default, so set exact=False to use k or fidbound.
+#               Note: the main.py front end will set exact=False for you
+#                     if k or fidbound options are set.
 #         If exact=False then at least one of k or fidbound must be set.
 #         fidelity=True is ignored if exact=True or k is set.
 #     "exact": True,   # Use |H> instead of |L>
@@ -52,12 +56,15 @@ import libcirc.projectors as projectors
 #         If unspecified they are selected at random, as required by the sampling algorithm.
 #     "x": None,   # Specify postselected other measurements
 #     "y": None,   # Specify postselected T measurements
+#     "forceL": False,  # use L sampling even though exact sampling is more efficient
+#                           Setting k does this automatically.
 # }
 # For more details see the command line's help text or the documentation
 def probability(circ, measure, samples=1e4, config={}):
-
     # unpack, configure default values
     verbose = config.get("verbose")
+    if verbose: config["quiet"] = True
+    quiet = config.get("quiet")
     if config.get("exact") is None: config["exact"] = True
     if config.get("fidbound") is None: config["fidbound"] = 1e-5
     if config.get("cpath") is None: config["cpath"] = "libcirc/sample"
@@ -107,18 +114,18 @@ def probability(circ, measure, samples=1e4, config={}):
 
     # any empty projectors? require exact decomposition so we have norm.
     if len(Gprime[0]) == 0 or len(Hprime[0]) == 0 and not config["exact"]:
-        print("Empty projectors found. Using exact decomposition to compute norm.")
+        if not quiet: print("Empty projectors found. Using exact decomposition to compute norm.")
         config["exact"] = True
 
     # verify existence of executable
     if not config.get("python"):
         if config.get("cpath") is None:
-            print("C executable unspecified. Reverting to python implementation.")
+            if not quiet: print("C executable unspecified. Reverting to python implementation.")
             config["python"] = True
 
         elif not os.path.isfile(config.get("cpath")):
-            print("Could not find c executable at: " + config.get("cpath"))
-            print("Reverting to python implementation")
+            if not quiet: print("Could not find c executable at: " + config.get("cpath"))
+            if not quiet: print("Reverting to python implementation")
             config["python"] = True
 
     # ------------------------------------ Python backend ------------------------------------
@@ -222,17 +229,20 @@ def probability(circ, measure, samples=1e4, config={}):
             if not line:
                 break
 
-            if ("Numerator:" in line or "Denominator:" in line):
-                sys.stdout.write(line + "\r")
-            else:
-                out.append(line)
-        sys.stdout.write("\033[K")
+            if not quiet:
+                if ("Numerator:" in line or "Denominator:" in line):
+                    sys.stdout.write(line + "\r")
+                else:
+                    out.append(line)
+        if not quiet: sys.stdout.write("\033[K")
 
         success = True
         try:
             numerator = float(out[-2])
             denominator = float(out[-1])
         except IndexError:
+            # these are errors, not warnings, so they are not silenced by quiet
+
             print("C code encountered error. Aborting.")
             if len(out) > 0:
                 print("Begin C code output:")

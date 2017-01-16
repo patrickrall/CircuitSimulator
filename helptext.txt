@@ -64,6 +64,9 @@ but the code may be easier to read.
 [-sp]
 Silence projector printing despite verbosity. Useful for big circuits.
 
+[-quiet]
+Do not print warnings. Errors are still printed. Overridden by -v.
+
 [cpath=libcirc/sample]
 Path to the compiled "sample" executable.
 
@@ -124,3 +127,8 @@ then there is a problem somewhere.
 [-np]
 Non-parallel mode. Threading makes breakpoint debugging harder.
 Since the algorithm is highly concurrent, non-parallel mode is very slow.
+
+[-forceL]
+If fidbound is used to determine k, then the application reverts to exact
+sampling if k > t/2. -forceL causes it to use L sampling even though it is
+less efficient.
