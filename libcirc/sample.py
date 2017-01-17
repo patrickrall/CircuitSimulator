@@ -9,7 +9,7 @@ from multiprocessing import Pool
 from libcirc.stabilizer.stabilizer import StabilizerState
 
 
-# Needs from config dict: fidbound, k, exact, rank, fidelity, verbose, forceL
+# Needs from config dict: exact, k, fidbound, rank, fidelity, forceL, verbose, quiet
 def decompose(t, config):
     quiet = config.get("quiet")
     verbose = config.get("verbose")
@@ -50,10 +50,7 @@ def decompose(t, config):
     innerProd = 0
     Z_L = None
 
-    if config.get("fidelity") and config.get("fidbound") is None:
-            raise ValueError("If fidelity=true then fidbound must be set.")
-
-    while not config.get("fidelity") or innerProd < 1-config.get("fidbound"):
+    while innerProd < 1-config.get("fidbound") or forceK:
 
         L = np.random.random_integers(0, 1, (k, t))
 
@@ -73,12 +70,13 @@ def decompose(t, config):
 
             innerProd = 2**k * v**(2*t) / Z_L
             if forceK:
+                # quiet can't be set for this
                 print("Inner product <H^t|L>: %f" % innerProd)
                 break
             elif innerProd < 1-config.get("fidbound"):
-                print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
+                if not quiet: print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
             else:
-                print("Inner product <H^t|L>: %f" % innerProd)
+                if not quiet: print("Inner product <H^t|L>: %f" % innerProd)
         else: break
 
     if config.get("fidelity"):
@@ -130,9 +128,6 @@ def evalHcomponent(args):
     # initialize stabilizer state
     phi = StabilizerState(t, t)
 
-    # bit = 1 corresponds to |00> + |11> state
-    # bit = 0 corresponds to |00> + |01> + |10> - |11>
-
     # set J matrix
     for idx in range(size):
         bit = int(bits[idx])
@@ -154,11 +149,13 @@ def evalHcomponent(args):
                 phi.shrink(vec, 0)
             continue
 
+        # bit = 1 corresponds to |00> + |11> state
+        # bit = 0 corresponds to |00> + |01> + |10> - |11>
+
         if bit == 1:
             vec[idx*2] = 1
             vec[idx*2+1] = 1
             phi.shrink(vec, 0)  # only 00 and 11 have inner prod 0 with 11
-
 
     innerProd = StabilizerState.innerProduct(theta, phi)
     return innerProd
@@ -184,9 +181,6 @@ def sampleProjector(args):
         # calculate sum of all permutations of generators
         return sum(generators)/len(generators)
 
-    # set unique seed for this calculation
-    # np.random.seed((seed) % 4294967296)
-
     # sample random theta
     theta = StabilizerState.randomStabilizerState(t)
 
@@ -196,7 +190,7 @@ def sampleProjector(args):
         res = theta.measurePauli(phases[g], zs[g], xs[g])
         projfactor *= res
 
-        # if res == 0: return 0  # theta annihilated by P
+        if res == 0: return 0  # theta annihilated by P
 
     if L is None:  # use exact decomp into pairs of stabilizer states
         func = evalHcomponent

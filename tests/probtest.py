@@ -16,11 +16,11 @@ pf = 10**logpf
 print("Expected success probability:", (1-pf)*100, "%")
 
 # t gates
-T = 6
+T = 2
 print("T gates:", T)
 
 # python
-python = True
+python = False
 if python: print("Python backend")
 else: print("C backend")
 
@@ -64,7 +64,7 @@ values = []
 ntests = int(np.ceil(10**(-logpf+1.5)))
 print("Running", ntests,"tests...")
 for i in range(ntests):
-    if (i%50 == 0): print("Test", i)
+    print("Test", i, "/", ntests, end="\r")
     p = probability(circ, {0:0}, samples=L, config=config)
     values.append(p)
     if np.abs(target - p) < e: passed += 1

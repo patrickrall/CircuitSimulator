@@ -1,4 +1,4 @@
-C=gcc
+C=mpicc
 CFLAGS=-lgsl -lgslcblas -lm -std=gnu99 -g -lpthread -W -Wall
 LFLAGS=-I/usr/include -L/usr/lib 
 

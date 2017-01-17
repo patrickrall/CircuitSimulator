@@ -17,27 +17,34 @@ def main(argv):
     if len(argv) < 3:
         return usage("Wrong number of arguments.")
 
-    samples = 1e4
+    samples = None
+    sampleerror = None
     config = {}
 
     # parse optional arguments
     for i in range(3, len(argv)):
+        if argv[i][:8] == "samples=": samples = int(float(argv[i][8:]))
+        elif argv[i][:12] == "sampleerror=": sampleerror = float(argv[i][12:])
 
-        if argv[i] == "-v": config["verbose"] = True
+        elif argv[i] == "-v": config["verbose"] = True
         elif argv[i] == "-sp": config["silenceprojectors"] = True
         elif argv[i] == "-quiet": config["quiet"] = True
-        elif argv[i] == "-np": config["parallel"] = False
-        elif argv[i][:8] == "samples=": samples = int(float(argv[i][8:]))
-        elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])
-        elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
+
+        elif argv[i] == "-py": config["python"] = True
+        elif argv[i][:6] == "cpath=": config["cpath"] = argv[i][6:]
+        elif argv[i][:6] == "procs=": config["procs"] = int(argv[i][6:])
+        elif argv[i] == "-stateParallel": config["stateParallel"] = True
+        elif argv[i][:5] == "file=": config["file"] = argv[i][5:]
+
         elif argv[i] == "-exact": config["exact"] = True
+        elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
+        elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])
+        elif argv[i] == "-fidelity": config["fidelity"] = True
+        elif argv[i] == "-rank": config["rank"] = True
+
         elif argv[i][:2] == "y=": config["y"] = argv[i][2:]
         elif argv[i][:2] == "x=": config["x"] = argv[i][2:]
         elif argv[i] == "-forceL": config["forceL"] = True
-        elif argv[i] == "-rank": config["rank"] = True
-        elif argv[i] == "-fidelity": config["fidelity"] = True
-        elif argv[i] == "-py": config["python"] = True
-        elif argv[i][:6] == "cpath=": config["cpath"] = argv[i][6:]
         else: raise ValueError("Invalid argument: " + argv[i])
 
     if config.get("verbose"):
@@ -63,6 +70,16 @@ def main(argv):
 
     if config.get("fidbound") is not None:
         config["exact"] = False
+
+    if sampleerror is not None:
+        if samples is not None and not quiet:
+            print("Warning: sampleerror option overrides samples option.")
+        samples = int(1/(0.05 * (sampleerror)**2)) + 1
+        if config.get("verbose"):
+            print("Can achieve 95% probable sample error %f with %d samples", (sampleerror, samples))
+    elif samples is None: samples = 1e4
+
+    if samples == 0: samples = 1
 
     if not re.match("^(1|0|M|_)*$", argv[2]):
         return usage("Measurement string must consists only of '1', '0', 'M' or '_'.")
@@ -92,7 +109,10 @@ def main(argv):
             if not quiet: print("Warning: Probability calculation requires exact sampling rather than L sampling.\nWill use L sampling anyway, as requested.")
 
         P = probability(circ, measure, samples=samples, config=config)
-        print("Probability: " + str(P))
+        if P is None:
+            print("Program gave no output probability")
+        else:
+            print("Probability: " + str(P))
 
     else:  # algorithm 2: sample bits
         if config.get("verbose"): print("Sample mode: sample marked bits")

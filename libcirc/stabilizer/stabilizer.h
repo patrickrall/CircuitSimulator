@@ -19,11 +19,13 @@ struct StabilizerState {
 	gsl_matrix *G;		//in \mathbb{F}^{n\times n}_2
 	gsl_matrix *Gbar;	//= (G^-1)^T
 
-	//define q to be zero for all x
 	int Q;				//in \mathbb{Z}_8
 	gsl_vector *D;		//in {0,2,4,6}^k
 	gsl_matrix *J;		//in {0,4}^{k\times k}, symmetric
 };
+
+
+struct StabilizerState* allocStabilizerState(int n, int k);
 
 void deepCopyState(struct StabilizerState *dest, struct StabilizerState *src);
 

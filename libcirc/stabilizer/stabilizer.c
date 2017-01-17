@@ -30,6 +30,30 @@ double randDouble(double min, double max)
     return min + (rand() / div);
 }
 
+
+struct StabilizerState* allocStabilizerState(int n, int k) {
+	struct StabilizerState *state = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
+
+    state->n = n;
+    state->k = k;
+
+    state->h = gsl_vector_alloc(n);
+    gsl_vector_set_zero(state->h);
+    state->G = gsl_matrix_alloc(n, n);
+    gsl_matrix_set_identity(state->G);
+    state->Gbar = gsl_matrix_alloc(n, n);
+    gsl_matrix_set_identity(state->Gbar);
+
+	state->Q = 0;
+	state->D = gsl_vector_alloc(n);
+    gsl_vector_set_zero(state->D);
+	state->J = gsl_matrix_alloc(n, n);
+    gsl_matrix_set_zero(state->J);
+
+    return state;
+}
+
+
 void deepCopyState(struct StabilizerState *dest, struct StabilizerState *src){
 	dest->n = src->n;
 	dest->k = src->k;
@@ -637,12 +661,7 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	tempVector1 = gsl_vector_alloc(state2->n);
 	
 	//K <- K_1, (also copy q_1)
-	struct StabilizerState *state = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
-	state->h = gsl_vector_alloc(state1->n);
-	state->D = gsl_vector_alloc(state1->n);
-	state->G = gsl_matrix_alloc(state1->n, state1->n);
-	state->Gbar = gsl_matrix_alloc(state1->n, state1->n);
-	state->J = gsl_matrix_alloc(state1->n, state1->n);
+    struct StabilizerState *state = allocStabilizerState(state1->n, state1->k);
 	deepCopyState(state, state1);
 
 	for(b=state2->k;b<state2->n;b++){
@@ -695,12 +714,7 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 		}
 	}
 	
-	struct StabilizerState *state2temp = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
-	state2temp->h = gsl_vector_alloc(state2->n);
-	state2temp->D = gsl_vector_alloc(state2->n);
-	state2temp->G = gsl_matrix_alloc(state2->n, state2->n);
-	state2temp->Gbar = gsl_matrix_alloc(state2->n, state2->n);
-	state2temp->J = gsl_matrix_alloc(state2->n, state2->n);
+    struct StabilizerState *state2temp = allocStabilizerState(state2->n, state2->k);
 	deepCopyState(state2temp, state2);
 
     updateQD(state2temp, y);
