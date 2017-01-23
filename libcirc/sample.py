@@ -88,7 +88,7 @@ def decompose(t, config):
 
 # Inner product for some state in |L> ~= |H^t>
 def evalLcomponent(args):
-    (i, L, theta, t) = args  # unpack arguments (easier for parallel code)
+    (i, L, theta, t, exact) = args  # unpack arguments (easier for parallel code)
 
     # compute bitstring by adding rows of l
     Lbits = list(np.binary_repr(i, width=len(L)))
@@ -113,12 +113,12 @@ def evalLcomponent(args):
             # |0> at index, inner prod with 1 is 0
         # |+> at index -> do nothing
 
-    return StabilizerState.innerProduct(theta, phi)
+    return StabilizerState.innerProduct(theta, phi, exact=exact)
 
 
 # Inner product for some state in |H^t> using pairwise decomposition
 def evalHcomponent(args):
-    (i, _, theta, t) = args  # unpack arguments (easier for parallel code)
+    (i, _, theta, t, exact) = args  # unpack arguments (easier for parallel code)
 
     size = int(np.ceil(t/2))
     odd = t % 2 == 1
@@ -157,7 +157,7 @@ def evalHcomponent(args):
             vec[idx*2+1] = 1
             phi.shrink(vec, 0)  # only 00 and 11 have inner prod 0 with 11
 
-    innerProd = StabilizerState.innerProduct(theta, phi)
+    innerProd = StabilizerState.innerProduct(theta, phi, exact=exact)
     return innerProd
 
 
@@ -186,9 +186,11 @@ def sampleProjector(args):
 
     # project random state to P
     projfactor = 1
+    logprojfactor = 0
     for g in range(len(phases)):
         res = theta.measurePauli(phases[g], zs[g], xs[g])
         projfactor *= res
+        if res != 0 and res != 1: logprojfactor += 1
 
         if res == 0: return 0  # theta annihilated by P
 
@@ -199,13 +201,57 @@ def sampleProjector(args):
         func = evalLcomponent
         size = len(L)
 
-    if parallel:  # parallelize for large enough L
-        pool = Pool()
-        total = sum(pool.map(func, [(i, L, theta, t) for i in range(0, 2**size)]))
-        pool.close()
-        pool.join()
-    else:
-        total = sum(map(func, [(i, L, theta, t) for i in range(0, 2**size)]))
+    if False:
+        if parallel:  # parallelize for large enough L
+            pool = Pool()
+            total = sum(pool.map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
+            pool.close()
+            pool.join()
+        else:
+            total = sum(map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
 
-    out = 2**t * np.abs(projfactor*total)**2
-    return out
+        return 2**t * np.abs(projfactor*total)**2
+    else:
+        realpart = {}
+        imagpart = {}
+
+        def insert(p, dic, sign):
+            if p not in dic.keys(): dic[p] = 0
+            dic[p] += sign
+
+        for i in range(0, 2**size):
+            (eps, pp, m) = func((i, L, theta, t, True))
+            if eps == 0: continue
+
+            p = pp
+            p -= logprojfactor
+            p += t
+
+            if m == 0: insert(p, realpart, +1)
+            if m == 2: insert(p, imagpart, +1)
+            if m == 4: insert(p, realpart, -1)
+            if m == 6: insert(p, imagpart, -1)
+
+            if m == 1:
+                insert(p-1, realpart, +1)
+                insert(p-1, imagpart, +1)
+
+            if m == 3:
+                insert(p-1, realpart, -1)
+                insert(p-1, imagpart, +1)
+
+            if m == 5:
+                insert(p-1, realpart, -1)
+                insert(p-1, imagpart, -1)
+
+            if m == 7:
+                insert(p-1, realpart, +1)
+                insert(p-1, imagpart, -1)
+
+        out = 0
+        for p in realpart.keys():
+            out += 2**(p/2) * realpart[p]
+        for p in imagpart.keys():
+            out += 2**(p/2)*1j * imagpart[p]
+
+        return np.abs(out)**2

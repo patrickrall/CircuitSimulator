@@ -21,9 +21,16 @@ def main(argv):
     sampleerror = None
     config = {}
 
+    mpiarg = False
+
     # parse optional arguments
     for i in range(3, len(argv)):
-        if argv[i][:8] == "samples=": samples = int(float(argv[i][8:]))
+        if mpiarg:
+            if argv[i][-1] == '"':
+                mpiarg = False
+                config["mpirun"] += " " + argv[i][:-1]
+            else: config["mpirun"] += " " + argv[i]
+        elif argv[i][:8] == "samples=": samples = int(float(argv[i][8:]))
         elif argv[i][:12] == "sampleerror=": sampleerror = float(argv[i][12:])
 
         elif argv[i] == "-v": config["verbose"] = True
@@ -32,6 +39,12 @@ def main(argv):
 
         elif argv[i] == "-py": config["python"] = True
         elif argv[i][:6] == "cpath=": config["cpath"] = argv[i][6:]
+        elif argv[i][:8] == 'mpirun="':
+            if argv[i][-1] == '"':
+                config["mpirun"] = argv[i][8:-1]
+            else:
+                mpiarg = True
+                config["mpirun"] = argv[i][8:]
         elif argv[i][:6] == "procs=": config["procs"] = int(argv[i][6:])
         elif argv[i] == "-stateParallel": config["stateParallel"] = True
         elif argv[i][:5] == "file=": config["file"] = argv[i][5:]
@@ -45,6 +58,7 @@ def main(argv):
         elif argv[i][:2] == "y=": config["y"] = argv[i][2:]
         elif argv[i][:2] == "x=": config["x"] = argv[i][2:]
         elif argv[i] == "-forceL": config["forceL"] = True
+        elif argv[i] == "-np": config["noparallel"] = True
         else: raise ValueError("Invalid argument: " + argv[i])
 
     if config.get("verbose"):
@@ -76,7 +90,7 @@ def main(argv):
             print("Warning: sampleerror option overrides samples option.")
         samples = int(1/(0.05 * (sampleerror)**2)) + 1
         if config.get("verbose"):
-            print("Can achieve 95% probable sample error %f with %d samples", (sampleerror, samples))
+            print("Can achieve 95%" + " probable sample error %f with %d samples" % (sampleerror, samples))
     elif samples is None: samples = 1e4
 
     if samples == 0: samples = 1

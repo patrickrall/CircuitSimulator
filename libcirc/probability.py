@@ -12,6 +12,7 @@ import os
 
 from libcirc.sample import decompose, sampleProjector
 import libcirc.projectors as projectors
+from libcirc.noapprox import calcExactProjector
 
 
 # calculate probability that a compiled circuit yields a measurement
@@ -51,6 +52,7 @@ import libcirc.projectors as projectors
 #         cpath should be good if executing from the repo root directory.
 #     "python": False,  # Use python backend
 #     "cpath": "libcirc/sample",  # Location of c executable
+#     "mpirun": "/usr/bin/mpirun",  # Location of mpirun executable, and any options
 #     "procs": None,  # number of processes. If unset python or mpi will pick automatically.
 #     "stateParallel": False, # Parallelize over state decomposition.
 #                             # More overhead, but gives progress bar.
@@ -72,6 +74,7 @@ def probability(circ, measure, samples=1e4, config={}):
     if config.get("exact") is None: config["exact"] = True
     if config.get("fidbound") is None: config["fidbound"] = 1e-5
     if config.get("cpath") is None: config["cpath"] = "libcirc/sample"
+    if config.get("mpirun") is None: config["mpirun"] = "/usr/bin/mpirun"
     if config.get("procs") is 0: config["procs"] = None
     samples = int(samples)
 
@@ -127,6 +130,11 @@ def probability(circ, measure, samples=1e4, config={}):
         if not quiet: print("Empty projectors found. Using exact decomposition to compute norm.")
         config["exact"] = True
 
+    # Clifford circuit? Don't bother calling c implementation.
+    # if t == 0:
+    #     if not quiet: print("Clifford circuit. Reverting to python implementation.")
+    #     config["python"] = True
+
     # verify existence of executable
     if not config.get("python"):
         if config.get("cpath") is None:
@@ -150,15 +158,20 @@ def probability(circ, measure, samples=1e4, config={}):
         # parallelization
         stateParallel = config.get("stateParallel")
         # calculate || Gprime |L> ||^2 and || Hprime |L> ||^2 up to a constant
-        if not stateParallel:
-            if verbose: print("Parallelizing over %d samples" % samples)
-            # set up thread pool
-            pool = Pool(config.get("procs"))
+        if not config.get("noparallel"):
+            if not stateParallel:
+                if verbose: print("Parallelizing over %d samples" % samples)
+                # set up thread pool
+                pool = Pool(config.get("procs"))
+            else:
+                if verbose:
+                    if L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
+                    else: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
+                pool = None
         else:
-            if verbose:
-                if L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
-                else: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
+            if not quiet: print("Parallelism disabled for debugging.")
             pool = None
+            stateParallel = 0
 
         # helper for preventing needless sampling trivial projectors or circuits
         def calcProjector(P, name=""):
@@ -179,8 +192,10 @@ def probability(circ, measure, samples=1e4, config={}):
 
         numerator = calcProjector(Gprime, name="Numerator")
         denominator = calcProjector(Hprime, name="Denominator")
+        # numerator = calcExactProjector(Gprime, Lnorm)
+        # denominator = calcExactProjector(Hprime, Lnorm)
 
-        if not stateParallel:
+        if pool is not None:
             pool.close()
             pool.join()
 
@@ -206,7 +221,7 @@ def probability(circ, measure, samples=1e4, config={}):
             return dat
 
         if not config.get("file"):
-            executable = ["/usr/bin/mpirun"]
+            executable = config["mpirun"].split()
             if config.get("procs") is not None:
                 executable += ["-n", str(config["procs"])]
 
@@ -267,7 +282,7 @@ def probability(circ, measure, samples=1e4, config={}):
         try:
             numerator = float(out[-2])
             denominator = float(out[-1])
-        except IndexError:
+        except:
             # these are errors, not warnings, so they are not silenced by quiet
 
             print("C code encountered error. Aborting.")
@@ -293,12 +308,11 @@ def probability(circ, measure, samples=1e4, config={}):
         print("|| Hprime |H^t> ||^2 ~= " + str(denominator/samples))
 
     if config.get("direct"):
-        return (numerator, denominator)
+        return (2**(v-u) * numerator, denominator)
 
     if numerator == 0: return 0  # deal with denominator == 0
     prob = 2**(v-u) * (numerator/denominator)
-    if (prob > 1):
-        prob = 1.0  # no probabilities greater than 1
+    # if (prob > 1): prob = 1.0  # no probabilities greater than 1
     return prob
 
 

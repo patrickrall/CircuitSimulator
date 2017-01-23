@@ -46,6 +46,9 @@ struct Projector* readProjector(FILE* stream) {
     struct Projector *P = (struct Projector *)malloc(sizeof(struct Projector));
     fscanf(stream,"%d", &(P->Nstabs));
     fscanf(stream,"%d", &(P->Nqubits));
+
+    if (P->Nstabs == 0) return P;
+
     P->phases = gsl_vector_alloc(P->Nstabs);
     P->xs = gsl_matrix_alloc(P->Nstabs, P->Nqubits);
     P->zs = gsl_matrix_alloc(P->Nstabs, P->Nqubits);
@@ -194,6 +197,8 @@ gsl_complex recv_gsl_complex(int src) {
 void send_projector(struct Projector* P, int dest) {
     send_int(P->Nstabs, dest);
     send_int(P->Nqubits, dest);
+    if (P->Nstabs == 0) return;
+
     send_gsl_vector(P->phases, dest);
     send_gsl_matrix(P->xs, dest);
     send_gsl_matrix(P->zs, dest);
@@ -202,6 +207,8 @@ struct Projector* recv_projector(int src) {
     struct Projector *P = (struct Projector *)malloc(sizeof(struct Projector));
     P->Nstabs = recv_int(src);
     P->Nqubits = recv_int(src);
+    if (P->Nstabs == 0) return P;
+
     P->phases = recv_gsl_vector(src);
     P->xs = recv_gsl_matrix(src);
     P->zs = recv_gsl_matrix(src);
@@ -803,10 +810,7 @@ void evalHcomponent(gsl_complex *innerProd, unsigned int i, struct StabilizerSta
 		}
 	}
 
-	// int *eps, *p, *m;
-	int eps;
-	int p;
-	int m;
+	int eps, p, m;
 	innerProduct(theta, phi, &eps, &p, &m, innerProd, 0);
     freeStabilizerState(phi);
     gsl_vector_free(tempVector);

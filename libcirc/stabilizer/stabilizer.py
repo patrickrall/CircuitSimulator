@@ -65,7 +65,7 @@ class StabilizerState:
                 phase = omega**(self.Q + np.dot(self.D, z) + 2*np.dot(np.dot(z, J), z))
 
                 x = ((np.dot(z, self.G[:self.k, :]) % 2) + self.h) % 2
-                idx = int(("".join(x.astype(int).astype(str)))[::-1], 2)
+                idx = int(("".join(x.astype(int).astype(str))), 2)
                 psi[idx] = phase
 
         return psi/2**(self.k/2)
@@ -238,7 +238,7 @@ class StabilizerState:
     # ------------------ Shrink --------------------
 
     # attempt to shrink the stabilizer state by eliminating a part of
-    # the basis that has inner product alpha with vector xi
+    # the basis that does not have inner product alpha with vector xi
     def shrink(self, xi, alpha, lazy=False):
         if len(xi) != self.n:
             raise ValueError("Input vector xi is not the right length for the vector space.")

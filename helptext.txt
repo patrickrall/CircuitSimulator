@@ -87,6 +87,12 @@ but the code may be easier to read.
 [cpath=libcirc/sample]
 Path to the compiled "sample" executable.
 
+[mpirun="/usr/bin/mpirun"]
+Location of the mpirun executable and any custom options. Must
+specify absolute path of executable. The procs option below will
+take care of the mpirun -np  option for you. The quotes are necessary,
+and you might need to backslash escape them depending on your shell.
+
 [procs=?]
 Number of parallel processes. If unspecified the application will
 auto-pick using python or mpi depending on which backend is in use.
