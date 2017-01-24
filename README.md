@@ -21,7 +21,7 @@ See the documentation for a complete description, once it is available.
 
 2. Install numpy
 
-  Download numpy from http://www.scipy.org/scipylib/download.html or use pip. Scipy is not required.
+  Download numpy from https://pypi.python.org/pypi/numpyor use pip. Scipy is not required.
 
 3. (Optional) Install matplotlib
 

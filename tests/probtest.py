@@ -20,18 +20,21 @@ targeterr = []
 
 title = "Numerical error suppression"
 # title = "Complex addition"
-print(title)
 verbose = False
 
 # number of samples
-logL = 3
+logL = 2
 L = int(np.ceil(10**logL))
 
 # probability of failure
-logpf = -1
+logpf = -0.2
 pf = 10**logpf
 
-title += "\n Samples: " + str(L) + ", Failure probability: "+ str(pf)
+# number of tests
+# ntests = 300
+ntests = int(np.ceil(10**(-logpf+1.5)))  # autopick
+
+title += "\n Samples: " + str(L) + ", Failure probability: " + str(np.round(pf*100,3)) + "%"
 # python
 python = True
 if python: title += ", Python backend"
@@ -84,7 +87,6 @@ for T in todo:
 
     passed = 0
     values = []
-    ntests = int(np.ceil(10**(-logpf+1.5)))
     if verbose: print("Running", ntests,"tests...")
     for i in range(ntests):
         print("Test", i, "/", ntests, end="\r")
@@ -138,6 +140,7 @@ ax3.boxplot(actoutput)
 ax3.plot(np.array(range(len(todo)))+1, expoutput, label="$|\psi|^2$")
 ax3.set_xticks(np.array(range(len(todo)))+1, todo)
 ax3.set_ylabel("Probability")
+ax3.set_xlabel("T gates")
 ax3.set_title("Output")
 ax3.set_ylim(0, 1)
 ax3.grid(True)
