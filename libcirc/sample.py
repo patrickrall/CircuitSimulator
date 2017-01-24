@@ -201,7 +201,10 @@ def sampleProjector(args):
         func = evalLcomponent
         size = len(L)
 
-    if False:
+    # experimental feature: suppress numerical error
+    suppress_numerical = True
+
+    if not suppress_numerical:
         if parallel:  # parallelize for large enough L
             pool = Pool()
             total = sum(pool.map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
