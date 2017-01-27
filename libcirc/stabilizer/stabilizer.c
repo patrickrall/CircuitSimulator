@@ -763,7 +763,7 @@ double logeta(int d, int n){
 	return (-d*(d+1)/2) + product;
 }
 
-void randomStabilizerState(struct StabilizerState *state, int n){
+struct StabilizerState* randomStabilizerState(int n){
 	//not using the dDists caching from python
 	
 	if(n<1){
@@ -812,89 +812,31 @@ void randomStabilizerState(struct StabilizerState *state, int n){
     free(dist);
     free(cumulative);
 
-	//time_t t;
-	//srand((unsigned) time(&t));
-	
-	gsl_matrix *X;
-	
-	if(d > 0){
-		//pick random X in \mathbb{F}^{d,n}_2 with rank d
-		gsl_matrix *U, *V;
-		gsl_vector *S;
-		X = gsl_matrix_alloc(n, d); 
-		U = gsl_matrix_alloc(n, n);
-		V = gsl_matrix_alloc(n, n);  
-		S = gsl_vector_alloc(n); 
-		gsl_vector *work;
-		work = gsl_vector_alloc(n);
-		int rank;
-		//X is d x n but we'll transpose it later
-		//need those dimensions to make SVD work since n>=d
-		while(1){
-			for(i=0;i<n;i++){
-				for(j=0;j<n;j++){
-                    if (j < d) {
-                        double toSet = rand() % 2;
-	    				gsl_matrix_set(X, i, j, toSet);
-	    				gsl_matrix_set(U, i, j, toSet);
-                    } else {
-	    				gsl_matrix_set(U, i, j, 0);
-                    }
-				}
-			}
-			
-			//rank of a matrix is the number of non-zero values in its singular value decomposition
-            gsl_linalg_SV_decomp(U, V, S, work);
-			rank = 0;
-			for(i=0;i<n;i++){
-				if(fabs(gsl_vector_get(S, i)) > 0.00001){
-					rank++;
-				}
-			}
-			if(rank == d){
-				break;
-			}
-		}
-		gsl_matrix_transpose(X);
-		
-		gsl_matrix_free(U);
-		gsl_matrix_free(V);
-		gsl_vector_free(S);
-		gsl_vector_free(work);
-	}
-	
-	state->n = n;
-	state->k = k;
-    state->h = gsl_vector_alloc(n);
-    state->G = gsl_matrix_alloc(n, n);
-    gsl_matrix_set_identity(state->G);
-    state->Gbar = gsl_matrix_alloc(n, n);
-    gsl_matrix_set_identity(state->Gbar);
+    struct StabilizerState* state = allocStabilizerState(n, n);
 
-	
 	gsl_vector *tempVector;
 	tempVector = gsl_vector_alloc(n);
 	
-	for(i=0;i<d;i++){
+    while (state->k > k){
+        for(int i=0;i<n;i++){
+		    gsl_vector_set(tempVector, i, rand() % 2);
+	    }
+
 		//lazy shrink with a'th row of X
-		gsl_matrix_get_row(tempVector, X, i);
 		shrink(state, tempVector, 0, 1);
 	}
-	state->k = k;
     gsl_vector_free(tempVector);
-    if (d > 0) gsl_matrix_free(X);
+
+    // Now K is a random k-dimensional subspace
 	
-	//now K = ker(X) and is in standard form
-	for(int i=0;i<n;i++){
+    for(int i=0;i<n;i++){
 		gsl_vector_set(state->h, i, rand() % 2);
 	}
 	state->Q = rand() % 8;
-	state->D = gsl_vector_alloc(n);
 	for(int i=0;i<k;i++){
 		gsl_vector_set(state->D, i, 2*(rand() % 4));
 	}
 	
-	state->J = gsl_matrix_alloc(n, n);
 	for(i=0;i<k;i++){
 		gsl_matrix_set(state->J, i, i, mod(2*(int)(gsl_vector_get(state->D, i)), 8));
 		for(j=0;j<i;j++){
@@ -902,6 +844,7 @@ void randomStabilizerState(struct StabilizerState *state, int n){
 			gsl_matrix_set(state->J, j, i, gsl_matrix_get(state->J, i, j));
 		}
 	}
+    return state;
 }
 
 //Helper: if xi not in K, extend it to an affine space that does

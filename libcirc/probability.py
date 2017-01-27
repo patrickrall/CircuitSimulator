@@ -33,12 +33,13 @@ from libcirc.noapprox import calcExactProjector
 #     "direct": False, # returns tuple (numerator, denominator) rather than the ratio
 #
 #         Sampling method specification parameters.
-#         exact overrides k, k overrides fidbound.
+#         noapprox overrides exact, exact overrides k, k overrides fidbound.
 #         exact=True by default, so set exact=False to use k or fidbound.
 #               Note: the main.py front end will set exact=False for you
 #                     if k or fidbound options are set.
 #         If exact=False then at least one of k or fidbound must be set.
 #         fidelity=True is ignored if exact=True or k is set.
+#     "noapprox": False,  #  Don't approximate at all (slow)
 #     "exact": True,   # Use |H> instead of |L>
 #     "k": None,   # size of L matrix defining |L>
 #     "fidbound": 1e-5, # inner product <L|H> must be this close to 1
@@ -60,6 +61,7 @@ from libcirc.noapprox import calcExactProjector
 #
 #         Debug. x and y determine the projectors, but are arbitrary in the end.
 #         If unspecified they are selected at random, as required by the sampling algorithm.
+#     "noparallel": False  # Don't parallelize at all
 #     "x": None,   # Specify postselected other measurements
 #     "y": None,   # Specify postselected T measurements
 #     "forceL": False,  # use L sampling even when exact sampling is more efficient
@@ -71,6 +73,9 @@ def probability(circ, measure, samples=1e4, config={}):
     verbose = config.get("verbose")
     if verbose: config["quiet"] = False
     quiet = config.get("quiet")
+    if config.get("noapprox") is True:
+        config["noparallel"] = True
+        config["exact"] = False
     if config.get("exact") is None: config["exact"] = True
     if config.get("fidbound") is None: config["fidbound"] = 1e-5
     if config.get("cpath") is None: config["cpath"] = "libcirc/sample"
@@ -180,20 +185,24 @@ def probability(circ, measure, samples=1e4, config={}):
                 return samples * sampleProjector((P, L, 0, False)) * np.abs(Lnorm)**2
 
             if pool is not None:
-                queries = [(P, L, seed, stateParallel) for seed in range(0, samples)]
+                seeds = np.random.random_integers(0, 2**32-1, samples)
+                queries = [(P, L, seed, stateParallel) for seed in seeds]
                 return sum(pool.map(sampleProjector, queries))
 
             # show progress when not parallelizing over samples
             out = 0
             for i in range(0, samples):
-                out += sampleProjector((P, L, i, stateParallel))
+                seed = np.random.random_integers(0, 2**32-1)
+                out += sampleProjector((P, L, seed, stateParallel))
                 print(name + ": %d/%d samples" % (i+1, samples), end="\r")
             return out
 
-        numerator = calcProjector(Gprime, name="Numerator")
-        denominator = calcProjector(Hprime, name="Denominator")
-        # numerator = calcExactProjector(Gprime, Lnorm)
-        # denominator = calcExactProjector(Hprime, Lnorm)
+        if config.get("noapprox"):
+            numerator = calcExactProjector(Gprime, Lnorm)
+            denominator = calcExactProjector(Hprime, Lnorm)
+        else:
+            numerator = calcProjector(Gprime, name="Numerator")
+            denominator = calcProjector(Hprime, name="Denominator")
 
         if pool is not None:
             pool.close()

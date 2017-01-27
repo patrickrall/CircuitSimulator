@@ -389,25 +389,46 @@ class StabilizerState:
                 break
         k = n - d
 
-        # special case
-        if (d == 0):
-            X = np.array([])
+        if True:  # test: algorithm that does not require rank verification
+            # create the state object. __init__ gives the correct properties
+            state = StabilizerState(n, n)
+
+            # randomly shrink until it has the right dimension
+            while state.k > k:
+                xi = np.random.random_integers(0, 1, n)
+                state.shrink(xi, 0, lazy=True)
+
         else:
-            # pick random X in \mathbb{F}^{d,n}_2 with rank d
-            while True:
-                X = np.random.random_integers(0, 1, (d, n))
+            # special case
+            if (d == 0):
+                X = np.array([])
+            else:
+                # rank calculation
+                from itertools import combinations as comb
 
-                if np.linalg.matrix_rank(X) == d: break
+                def fullrank(X, d, n):
+                    for i in comb(range(n), d):
+                        rank = np.linalg.det(X[:, i])
+                        if rank % 2 == 1:
+                            return True
+                    return False
 
-        # create the state object. __init__ gives the correct properties
-        state = StabilizerState(n, k)
+                # pick random X in \mathbb{F}^{d,n}_2 with rank d
+                while True:
+                    X = np.random.random_integers(0, 1, (d, n))
 
-        for a in range(d):
-            # lazy shrink with a'th row of X
-            state.shrink(X[a], 0, lazy=True)
+                    if fullrank(X, d, n): break
 
-            # reset state's k after shrinking
-            state.k = k
+            # create the state object. __init__ gives the correct properties
+            state = StabilizerState(n, n)
+
+            for a in range(d):
+                # lazy shrink with a'th row of X
+                state.shrink(X[a], 0, lazy=True)
+
+                # reset state's k after shrinking
+                # state.k = k
+            if (state.k != k): print("Bad k")
 
         # now K = ker(X) and is in standard form
 

@@ -35,7 +35,7 @@ int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy);
 
 void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact);
 
-void randomStabilizerState(struct StabilizerState *state, int n);
+struct StabilizerState* randomStabilizerState(int n);
 
 void extend(struct StabilizerState *state, gsl_vector *xi);
 

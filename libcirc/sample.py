@@ -181,6 +181,9 @@ def sampleProjector(args):
         # calculate sum of all permutations of generators
         return sum(generators)/len(generators)
 
+    # init seed
+    np.random.seed(seed)
+
     # sample random theta
     theta = StabilizerState.randomStabilizerState(t)
 
@@ -202,7 +205,7 @@ def sampleProjector(args):
         size = len(L)
 
     # experimental feature: suppress numerical error
-    suppress_numerical = True
+    suppress_numerical = False
 
     if not suppress_numerical:
         if parallel:  # parallelize for large enough L

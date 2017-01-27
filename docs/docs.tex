@@ -1,0 +1,111 @@
+\documentclass[11pt]{article}
+\usepackage{geometry}                
+\geometry{letterpaper}
+\usepackage[]{graphicx}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{multicol}
+\usepackage{braket}
+
+\begin{document}
+
+\begin{center}
+    {\LARGE CircuitSimulator Documentation }
+\vspace{2mm}
+    {\large \\ Patrick Rall, Iskren Vankov, David Gosset \\ \vspace{1mm} \today}
+\end{center}
+
+%figure environment for multicols
+\newenvironment{Figure}
+  {\par\medskip\noindent\minipage{\linewidth}}
+  {\endminipage\par\medskip}
+
+Simulation of quantum circuits via the conventional matrix-multiplication approach suffers from an exponential blowup in the number of qubits.  Medium size quantum circuits with 20 qubits or more are nearly impossible to simulate this way. On the other hand the Gottesmann-Knill theorem gives a polynomial-time algorithm for simulation of quantum circuits composed entirely of the Clifford operations:
+
+\begin{equation}
+    H = \frac{1}{\sqrt{2}} \begin{bmatrix}1 & 1 \\ 1 & -1\end{bmatrix} \hspace{5mm}
+    S = \begin{bmatrix}1 & 0 \\ 0 & i\end{bmatrix}
+        \hspace{5mm}
+        CNOT = \begin{bmatrix}1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \\ 0 & 0 & 1 & 0\end{bmatrix}
+\end{equation}
+
+In January 2017, Sergei Bravyi and David Gosset augmented the algorithm from the Gottesmann-Knill theorem to also permit simulation of the $T$ gate:
+
+\begin{equation}
+    T = \begin{bmatrix}1 & 0 \\ 0 & e^{i\pi/4}\end{bmatrix}
+\end{equation}
+
+Their modification retains the polynomial scaling in both the number of qubits and the number of Clifford operations, allowing it to simulate large quantum circuits. The only exponential parameter is the total number of $T$ gates used. Clifford+$T$ is a well-studied universal set of gates, and many interesting quantum circuits are written in Clifford+$T$.
+
+For a full explanation of the algorithm please see the original paper by Bravyi and Gosset at \url{http://arxiv.org/abs/1601.07601}. The purpose of this document is to illustrate how to use the implementation of the algorithm available at \url{https://github.com/patrickrall/CircuitSimulator}. The goal is that a full understanding of the algorithm is not required to use the software.
+
+\clearpage
+\tableofcontents
+
+\clearpage
+\section{Installation}
+
+The application is written in Python. Python is easy to read even for non-programmers and is available on all platforms. A full implementation of the algorithm in Python should be easy to install on all operating systems, and matches the pseudo-code in \url{http://arxiv.org/abs/1601.07601} almost line-by-line.
+
+The most time consuming part of the algorithm is the calculation of inner products $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit and $\ket{H^{\otimes t}}$ is a particular quantum state. This highly parallelizable task also has an implementation in C, designed to run on computer clusters using OpenMPI.
+
+\subsection{Python Implementation}
+
+The application was developed in Python 3, although tests showed that Python 2 worked also. Download and install the following, either using the links provided or your favorite package manager:
+
+\begin{description}
+    \item[Python 3:] \url{https://www.python.org/downloads/}
+    \item[numpy:] \url{https://pypi.python.org/pypi/numpy}
+    \item[matplotlib:] \url{http://matplotlib.org/users/installing.html}
+\end{description}
+
+Matplotlib is not strictly required for the algorithm itself, but several testing scripts use matplotlib to visualize results.
+
+\subsection{OpenMPI Implementation}
+
+OpenMPI is an implementation of Message Passing Interface, a tool that allows many processes to communicate on a cluster. Small numbers of $T$-gates can be simulated using Python, but for larger numbers the OpenMPI version of the algorithm will be required, either on a single machine or on several.
+
+Download OpenMPI here: \url{https://www.open-mpi.org/software/ompi/v2.0/}
+
+\noindent Once OpenMPI is installed, C binaries can be compiled using \textit{mpicc} and executed using \textit{mpirun}. To compile the implementation simply change into the root directory and type \textit{make}.
+
+\subsection{Usage}
+
+
+
+
+\clearpage
+\section{Performance}
+\section{Approximations}
+
+The most of the work in the algorithm is to calculate $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit. $\ket{H} = \cos(\pi/8)\ket{0} + \sin(\pi/8)$ is the eigenstate of the Hadamard gate, and is a `magic' state that is used to implement $T$-gates.
+
+The CircuitSimulator application implements efficient manipulations of so-called stabilizer states. $\ket{H}$ is not a stabilizer state, but we can write $\ket{H^{\otimes 2}}$ as a linear combination of two stabilizer states. To write $\ket{H^{\otimes t}}$ therefore require a linear combination of $\chi = O(2^{t/2})$. Now calculate $|\Pi\ket{H^{\otimes t}}|^2$:
+$$\ket{H^{\otimes t}} = \sum^\chi_{i=1} \ket{\phi_i} \hspace{3mm} \to \hspace{3mm} |\Pi\ket{H^{\otimes t}}|^2 = |\bra{H^{\otimes t}}\Pi\ket{H^{\otimes t}}| =\left| \sum^\chi_{i=1} \sum^\chi_{j=1}\bra{\phi_i}\Pi\ket{\phi_j}\right|$$
+
+There are $\chi^2 = O(2^t)$ terms in this sum, so this algorithm runs in $O(2^t)$. This calculation is so slow that Bravyi and Gosset did not include it in their paper. Instead, they developed several approximate techniques that can calculate output probabilities to arbitrarily small error.
+
+The slow approximation-free algorithm can be accessed using the \textsc{-noapprox} option.
+
+\subsection{Inner product calculation}
+
+To calculate inner products in $\chi = O(2^{t/2})$ time, the algorithm samples $\bra{\theta}\Pi\ket{H^{\otimes t}}$, where $\ket{\theta}$ is a random stabilizer state. Consider the random variable:
+$$\xi = \frac{2^t}{L} \sum_{i=1}^L \left| \bra{\theta_i} (\Pi \ket{H^t}) \right|^2\hspace{4mm}\to\hspace{4mm} \mathbb{E}(\xi) = | \Pi \ket{H^t}|^2,\hspace{4mm} \sigma = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\sqrt{L}} | \Pi \ket{H^t}|^2 $$
+
+
+
+
+\subsection{Magic state approximation}
+\section{Options and Parameters}
+\section{Measurement}
+\subsection{Weak Measurement}
+\subsection{Strong Measurement}
+\section{The Circuit Language}
+Lorem ipsum.
+
+
+
+\end{document}
+

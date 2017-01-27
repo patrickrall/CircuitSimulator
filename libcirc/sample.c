@@ -254,9 +254,7 @@ int main(int argc, char* argv[]) {
 
     gsl_set_error_handler_off();
         
-    int seed = (int)time(NULL);
-    srand(seed); // set random seed
-
+    
     // declare variables that every process will need for sampling parallelization
     int samples;
     int k; 
@@ -370,9 +368,13 @@ int main(int argc, char* argv[]) {
         }
 
         /************* Send data to workers *************/
-
-        // send stateParallel to workers
+    
+        int seed = (int)time(NULL);
+        srand(seed); // set random seed
+        
+        // send stateParallel, random seed to workers
         for (int dest = 1; dest < world_size; dest++) {
+            send_int(rand(), dest);
             send_int(stateParallel, dest);
         }
 
@@ -389,8 +391,13 @@ int main(int argc, char* argv[]) {
             }
         }
 
+
+
+
     } else {
         /************* Worker process *************/
+        int seed = recv_int(0);
+        srand(seed);
         stateParallel = recv_int(0);
 
         if (stateParallel == 0) {  
@@ -840,8 +847,7 @@ double sampleProjector(struct Projector *P, gsl_matrix *L, int k, const int exac
     }
 
     // Sample random stabilizer state
-	struct StabilizerState *theta = (struct StabilizerState *)malloc(sizeof(struct StabilizerState));
-    randomStabilizerState(theta, t);
+	struct StabilizerState *theta = randomStabilizerState(t);
 
     // project state onto P
     double projfactor = 1;
