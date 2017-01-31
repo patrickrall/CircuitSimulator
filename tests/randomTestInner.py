@@ -10,8 +10,8 @@ from libcirc.noapprox import prepH
 from multiprocessing import Pool
 
 # todo = [1,2]
-# todo = [1,2,3,4,5,6]
-todo = [1,2,3,4]
+todo = [1,2,3,4,5,6,7]
+# todo = [1,2,3,4]
 
 keys = ["success", "confidence", "actoutput", "error", "std", "targeterr"]
 data = {}

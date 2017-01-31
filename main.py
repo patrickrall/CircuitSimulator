@@ -6,7 +6,7 @@
 import sys
 import re
 from datetime import datetime
-import libcirc.compilecirc as compilecirc
+import libcirc.compile.compilecirc as compilecirc
 from libcirc.probability import probability, sampleQubits
 
 

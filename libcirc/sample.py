@@ -204,60 +204,12 @@ def sampleProjector(args):
         func = evalLcomponent
         size = len(L)
 
-    # experimental feature: suppress numerical error
-    suppress_numerical = False
-
-    if not suppress_numerical:
-        if parallel:  # parallelize for large enough L
-            pool = Pool()
-            total = sum(pool.map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
-            pool.close()
-            pool.join()
-        else:
-            total = sum(map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
-
-        return 2**t * np.abs(projfactor*total)**2
+    if parallel:  # parallelize for large enough L
+        pool = Pool()
+        total = sum(pool.map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
+        pool.close()
+        pool.join()
     else:
-        realpart = {}
-        imagpart = {}
+        total = sum(map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
 
-        def insert(p, dic, sign):
-            if p not in dic.keys(): dic[p] = 0
-            dic[p] += sign
-
-        for i in range(0, 2**size):
-            (eps, pp, m) = func((i, L, theta, t, True))
-            if eps == 0: continue
-
-            p = pp
-            p -= logprojfactor
-            p += t
-
-            if m == 0: insert(p, realpart, +1)
-            if m == 2: insert(p, imagpart, +1)
-            if m == 4: insert(p, realpart, -1)
-            if m == 6: insert(p, imagpart, -1)
-
-            if m == 1:
-                insert(p-1, realpart, +1)
-                insert(p-1, imagpart, +1)
-
-            if m == 3:
-                insert(p-1, realpart, -1)
-                insert(p-1, imagpart, +1)
-
-            if m == 5:
-                insert(p-1, realpart, -1)
-                insert(p-1, imagpart, -1)
-
-            if m == 7:
-                insert(p-1, realpart, +1)
-                insert(p-1, imagpart, -1)
-
-        out = 0
-        for p in realpart.keys():
-            out += 2**(p/2) * realpart[p]
-        for p in imagpart.keys():
-            out += 2**(p/2)*1j * imagpart[p]
-
-        return np.abs(out)**2
+    return 2**t * np.abs(projfactor*total)**2

@@ -23,8 +23,6 @@ int mod(int a, int b)
 //helper to generate a random double in a range
 double randDouble(double min, double max) 
 {
-	//time_t t;
-	//srand((unsigned) time(&t));
     double range = (max - min); 
     double div = RAND_MAX / range;
     return min + (rand() / div);

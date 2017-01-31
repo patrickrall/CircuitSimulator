@@ -48,7 +48,7 @@ def prepH(i, t):
     return phi
 
 
-def calcExactProjector(P, Lnorm):
+def exactProjector(P, Lnorm):
     (phases, xs, zs) = P
 
     # empty projector

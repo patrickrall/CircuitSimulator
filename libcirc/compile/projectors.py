@@ -5,8 +5,8 @@
 #
 
 import numpy as np
-import libcirc.compilecirc as compilecirc
-import libcirc.gadgetize as gadgetize
+import libcirc.compile.compilecirc as compilecirc
+import libcirc.compile.gadgetize as gadgetize
 
 
 # obtain projectors G, H

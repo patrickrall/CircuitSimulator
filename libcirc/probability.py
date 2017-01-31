@@ -11,8 +11,8 @@ from subprocess import PIPE, Popen
 import os
 
 from libcirc.sample import decompose, sampleProjector
-import libcirc.projectors as projectors
-from libcirc.noapprox import calcExactProjector
+import libcirc.compile.projectors as projectors
+from libcirc.noapprox import exactProjector
 
 
 # calculate probability that a compiled circuit yields a measurement
@@ -198,8 +198,8 @@ def probability(circ, measure, samples=1e4, config={}):
             return out
 
         if config.get("noapprox"):
-            numerator = calcExactProjector(Gprime, Lnorm)
-            denominator = calcExactProjector(Hprime, Lnorm)
+            numerator = exactProjector(Gprime, Lnorm)
+            denominator = exactProjector(Hprime, Lnorm)
         else:
             numerator = calcProjector(Gprime, name="Numerator")
             denominator = calcProjector(Hprime, name="Denominator")
@@ -313,8 +313,8 @@ def probability(circ, measure, samples=1e4, config={}):
     # ------------------ end backend-dependent code ------------------
 
     if verbose:
-        print("|| Gprime |H^t> ||^2 ~= " + str(numerator/samples))
-        print("|| Hprime |H^t> ||^2 ~= " + str(denominator/samples))
+        print("|| Gprime |H^t> ||^2 ~= " + str(numerator))
+        print("|| Hprime |H^t> ||^2 ~= " + str(denominator))
 
     if config.get("direct"):
         return (2**(v-u) * numerator, denominator)

@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 
 from libcirc.probability import probability
 
-todo = [1,2,3,4,5,6,7]
+# todo = [1,2,3,4,5,6,7]
 # todo = [1,2,3]
+todo = [6,7]
 
-keys = ["success", "confidence", "actoutput", "expoutput", "error", "std", "targeterr"]
+keys = ["success", "confidence", "output", "error", "std", "targeterr"]
 data = {"num":{}, "denom":{}}
 
 for key in keys:
@@ -18,7 +19,7 @@ for key in keys:
     data["denom"][key] = []
 
 # title = "Numerical error suppression"
-title = "Random seeds"
+title = "Cheese random 2"
 verbose = False
 
 # number of samples
@@ -30,7 +31,7 @@ logpf = -1
 pf = 10**logpf
 
 # number of tests
-ntests = 300
+ntests = 1
 # ntests = int(np.ceil(10**(-logpf+1.5)))  # autopick
 
 title += "\n Samples: " + str(L) + ", Failure probability: " + str(np.round(pf*100,3)) + "%"
@@ -64,8 +65,6 @@ for T in todo:
     tdenom = L*tdenom
 
     if verbose: print("Target outputs:", tnum, tdenom)
-    data["num"]["expoutput"].append(tnum)
-    data["denom"]["expoutput"].append(tdenom)
 
     # multiplicative error
     enum = np.sqrt((2**T - 1)/(2**T + 1))*tnum/np.sqrt(L*pf)
@@ -88,7 +87,8 @@ for T in todo:
         if verbose: print("H sampling")
         config = {"python":python, "exact":True, "direct":True}
 
-    config["procs"] = 8
+    config["mpirun"] = "/usr/bin/mpirun --hostfile /home/prall/.mpi_hostfile"
+    config["procs"] = 16
 
     numpassed = 0
     denompassed = 0
@@ -96,7 +96,7 @@ for T in todo:
     denomvalues = []
     if verbose: print("Running", ntests,"tests...")
     for i in range(ntests):
-        print("Test", i, "/", ntests, end="\r")
+        print("Test", i+1, "/", ntests, end="\r")
         (num, denom) = probability(circ, {0:0}, samples=L, config=config)
         numvalues.append(num)
         denomvalues.append(denom)
@@ -105,6 +105,8 @@ for T in todo:
 
     numprob = numpassed/ntests
     denomprob = denompassed/ntests
+
+    print("Passed:", np.round(100*numprob,1), "%    ")
 
     z = 1.96  # 95 % confidence
     numconfshift = z*np.sqrt(numprob*(1-numprob)/ntests)
@@ -118,8 +120,8 @@ for T in todo:
     data["num"]["error"].append(np.abs(np.array(numvalues) - tnum))
     data["denom"]["error"].append(np.abs(np.array(denomvalues) - tdenom))
 
-    data["num"]["actoutput"].append(np.array(numvalues))
-    data["denom"]["actoutput"].append(np.array(denomvalues))
+    data["num"]["output"].append(np.array(numvalues/tnum))
+    data["denom"]["output"].append(np.array(denomvalues/tdenom))
     print("")
 
 axes = plt.subplots(3,2)[1].T
@@ -136,7 +138,7 @@ for i in range(2):
     ax[0].grid(True)
     ax[0].set_xticks(todo)
     ax[0].set_xlim(todo[0]-1, todo[-1]+1)
-    ax[0].set_ylim(0, 1)
+    ax[0].set_ylim(0, 1.1)
     ax[0].legend(loc=0)
 
     ax[1].boxplot(dat["error"])
@@ -146,8 +148,8 @@ for i in range(2):
     ax[1].set_ylabel("Error")
     ax[1].grid(True)
 
-    ax[2].boxplot(dat["actoutput"])
-    ax[2].plot(np.array(range(len(todo)))+1, dat["expoutput"], label="$|\psi|^2$")
+    ax[2].boxplot(dat["output"])
+    ax[2].plot(np.array(range(len(todo)))+1, len(todo)*[1], label="$|\psi|^2$")
     ax[2].set_xticks(np.array(range(len(todo)))+1, todo)
     ax[2].set_ylabel("Probability")
     ax[2].set_xlabel("T gates")
