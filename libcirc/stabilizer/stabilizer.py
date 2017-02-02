@@ -32,17 +32,20 @@ class StabilizerState:
         self.J = np.zeros((k, k))   # in {0,4}^{k\times k}, symmetric
 
     def print(self):
-        print("n = " + str(self.n))
-        print("k = " + str(self.k))
-        print("h = " + str(self.h).replace(" ","").replace(".",""))
-        print("G = " + str(self.G).replace(" ","").replace(".","").replace("]]","]").replace("[[","\n["))
-        print("Gbar = " + str(self.Gbar).replace(" ","").replace(".","").replace("]]","]").replace("[[","\n["))
-        print("Q = "+str(self.Q))
-        print("D = " + str(self.D).replace(" ","").replace(".",""))
+        print("state.n = " + str(self.n))
+        print("state.k = " + str(self.k))
+
+        print("state.h = np.array([" + ",".join([str(int(x)) for x in np.array(self.h)]) + "])")
+
+        print("state.G = np.array([[" + "],[".join([",".join([str(int(x)) for x in y]) for y in np.array(self.G)]) + "]])")
+        print("state.Gbar = np.array([[" + "],[".join([",".join([str(int(x)) for x in y]) for y in np.array(self.Gbar)]) + "]])")
+
+        print("state.Q = "+str(int(self.Q)))
+        print("state.D = np.array([" + ",".join([str(int(x)) for x in np.array(self.D)]) + "])")
 
         if (self.k > 0):
-            print("J = " + str(self.J).replace(" ","").replace(".","").replace("]]","]").replace("[[","\n["))
-        else: print("J = ")
+            print("state.J = np.array([[" + "],[".join([",".join([str(int(x)) for x in y]) for y in np.array(self.J)]) + "]])")
+        else: print("J = np.array((0,0))")
 
     # -------------- State Vector ------------------
 

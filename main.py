@@ -49,6 +49,7 @@ def main(argv):
         elif argv[i] == "-stateParallel": config["stateParallel"] = True
         elif argv[i][:5] == "file=": config["file"] = argv[i][5:]
 
+        elif argv[i] == "-noapprox": config["noapprox"] = True
         elif argv[i] == "-exact": config["exact"] = True
         elif argv[i][:2] == "k=": config["k"] = int(float(argv[i][2:]))
         elif argv[i][:9] == "fidbound=": config["fidbound"] = float(argv[i][9:])

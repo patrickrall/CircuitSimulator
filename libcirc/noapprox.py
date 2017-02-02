@@ -74,13 +74,13 @@ def exactProjector(P, Lnorm):
         for g in range(len(phases)):
             res = theta.measurePauli(phases[g], zs[g], xs[g])
             projfactor *= res
-
             if res == 0: break  # theta annihilated by P
         if projfactor == 0: continue
 
         for j in range(0, 2**size):
             phi = prepH(j, t)
             inner = StabilizerState.innerProduct(theta, phi)
+
             total += inner * projfactor
 
     return np.abs(total)

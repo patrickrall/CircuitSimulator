@@ -255,16 +255,14 @@ void Wsigma(struct StabilizerState *state, int *eps, int *p, int *m, gsl_complex
 	int exact, int sigma, int s, int *M, int Mlength, int *Dimers, int DimersLength){
 	
 	if(state->k == 0){
-		if(exact == 1){
-			*eps = 1;
-			*p = 0;
-			*m = state->Q;
-			return;
-		}
-		else{
+        *eps = 1;
+		*p = 0;
+		*m = state->Q;
+
+		if(exact == 0) {
 			evalW(ans, 1, 0, state->Q);
-			return;
 		}
+        return;
 	}
 	
 	//W = (1, 0, self.Q + sigma*self.D[s])
@@ -728,14 +726,18 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 	//now q, q2 are defined in the same basis
 	state->Q = state->Q - mod(state2temp->Q, 8);
 	for(i=0;i<state->k;i++){
-		gsl_vector_set(state->D, i, gsl_vector_get(state->D, i) - mod((int)gsl_vector_get(state2temp->D, i), 8));
+		gsl_vector_set(state->D, i, mod((int)gsl_vector_get(state->D, i) - (int)gsl_vector_get(state2temp->D, i), 8));
 		for(j=0;j<state->k;j++){
-			gsl_matrix_set(state->J, i, j, gsl_matrix_get(state->J, i, j) - mod((int)gsl_matrix_get(state2temp->J, i, j), 8));
+			gsl_matrix_set(state->J, i, j, mod((int)gsl_matrix_get(state->J, i, j) - (int)gsl_matrix_get(state2temp->J, i, j), 8));
 		}
 	}	
 
+
     if(exact == 0){
+        //printStabilizerState(state);
 		exponentialSum(state, eps, p, m, ans, 0);
+        //printStabilizerState(state);
+		//exponentialSum(state, eps, p, m, ans, 0);
 		*ans = gsl_complex_mul_real(*ans, pow(2, -((double)state1->k + (double)state2temp->k)/2));
 	}
 	else{
@@ -1158,7 +1160,7 @@ void printStabilizerState(struct StabilizerState *state) {
     printf("])\n");
 
     if (state->k == 0) {
-        printf("state.J = np.zeros((0,0))");
+        printf("state.J = np.zeros((0,0))\n");
     } else {
         printf("state.J = np.array([");
         for (int i = 0; i<state->k; i++) {

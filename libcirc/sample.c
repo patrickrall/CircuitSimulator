@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
     // print mode, used for IO debugging. 
     // For algorithm related output use verbose
     int print = 0;
-    int debug = 1;
+    int debug = 0;
     if (print && world_rank == 0) printf("C backend print mode is on.\n");
 
     if (world_rank == 0) {
@@ -163,6 +163,38 @@ int main(int argc, char* argv[]) {
 
         // DEBUG
         if (debug) {
+            /*
+        struct StabilizerState * theta = prepH(4, 5);
+        struct StabilizerState * phi = prepH(0, 5);
+        gsl_vector *zeta = gsl_vector_alloc(G->Nqubits);
+        gsl_vector *xi = gsl_vector_alloc(G->Nqubits);
+        double projfactor = 1;
+        for (int j = 0; j < G->Nstabs; j++) {
+            int m = gsl_vector_get(G->phases, j);
+            gsl_matrix_get_row(zeta, G->zs, j);
+            gsl_matrix_get_row(xi, G->xs, j);
+            
+            double res = measurePauli(theta, m, zeta, xi);
+            projfactor *= res;
+
+            if (res == 0) break;
+        } 
+        
+        gsl_complex innerProd;
+            
+        int eps, p, m;
+        //printStabilizerState(theta);
+        //printStabilizerState(phi);
+        
+        innerProduct(theta, phi, &eps, &p, &m, &innerProd, 0);
+        
+        printf("inner %d %d, (%f) + i(%f), %f\n", 4, 0, GSL_REAL(innerProd), GSL_IMAG(innerProd), projfactor);
+        printf("0\n");
+        printf("0\n");
+
+        MPI_Finalize();
+        return 0;
+*/
         double numerator = exactProjector(G, Lnorm);
         double denominator = exactProjector(H, Lnorm);
 

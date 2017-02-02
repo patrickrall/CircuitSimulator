@@ -9,7 +9,7 @@ from libcirc.probability import probability
 
 # todo = [1,2,3,4,5,6,7]
 # todo = [1,2,3]
-todo = [6,7]
+todo = [5,6,7]
 
 keys = ["success", "confidence", "output", "error", "std", "targeterr"]
 data = {"num":{}, "denom":{}}
@@ -19,7 +19,7 @@ for key in keys:
     data["denom"][key] = []
 
 # title = "Numerical error suppression"
-title = "Cheese random 2"
+title = "please please please be fixed"
 verbose = False
 
 # number of samples
@@ -31,7 +31,7 @@ logpf = -1
 pf = 10**logpf
 
 # number of tests
-ntests = 1
+ntests = 300
 # ntests = int(np.ceil(10**(-logpf+1.5)))  # autopick
 
 title += "\n Samples: " + str(L) + ", Failure probability: " + str(np.round(pf*100,3)) + "%"
@@ -87,8 +87,8 @@ for T in todo:
         if verbose: print("H sampling")
         config = {"python":python, "exact":True, "direct":True}
 
-    config["mpirun"] = "/usr/bin/mpirun --hostfile /home/prall/.mpi_hostfile"
-    config["procs"] = 16
+    # config["mpirun"] = "/usr/bin/mpirun --hostfile /home/prall/.mpi_hostfile"
+    config["procs"] = 8
 
     numpassed = 0
     denompassed = 0

@@ -53,11 +53,10 @@ struct StabilizerState* prepH(int i, int t) {
 }
 
 double exactProjector(struct Projector *P, double Lnorm) {
-    printf("Lnorm: %f\n", Lnorm);
-    printf("Projector\n");
-    printProjector(P);
     // empty projector
-    if (P->Nstabs == 0) return Lnorm;
+    if (P->Nstabs == 0) {
+        return pow(Lnorm, 2);
+    }
 
     int t = P->Nqubits;
 
@@ -85,16 +84,16 @@ double exactProjector(struct Projector *P, double Lnorm) {
         gsl_vector *xi = gsl_vector_alloc(P->Nqubits);
 
         for (int j = 0; j < P->Nstabs; j++) {
-            int m = gsl_vector_get(P->phases, i);
-            gsl_matrix_get_row(zeta, P->zs, i);
-            gsl_matrix_get_row(xi, P->xs, i);
-
+            int m = gsl_vector_get(P->phases, j);
+            gsl_matrix_get_row(zeta, P->zs, j);
+            gsl_matrix_get_row(xi, P->xs, j);
+            
             double res = measurePauli(theta, m, zeta, xi);
             projfactor *= res;
 
             if (res == 0) break;
         } 
-        
+
         gsl_vector_free(zeta);
         gsl_vector_free(xi);
 
@@ -107,11 +106,20 @@ double exactProjector(struct Projector *P, double Lnorm) {
             
             int eps, p, m;
         	innerProduct(theta, phi, &eps, &p, &m, &innerProd, 0);
-            freeStabilizerState(phi);
-            total = gsl_complex_add(total, innerProd);  
-        }
+    
 
-        total = gsl_complex_mul_real(total, projfactor);
+            /*
+            if (i == 4 && j == 0) {
+                printStabilizerState(theta);
+                printStabilizerState(phi);
+                printf("inner %d %d, (%f) + i(%f), %f\n", i, j, GSL_REAL(innerProd), GSL_IMAG(innerProd), projfactor);
+            }
+            */
+            
+            freeStabilizerState(phi);
+            
+            total = gsl_complex_add(total, gsl_complex_mul_real(innerProd, projfactor));  
+        }
     }
 
     return gsl_complex_abs(total);
