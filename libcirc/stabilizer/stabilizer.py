@@ -29,8 +29,9 @@ class StabilizerState:
         # define q to be zero for all x
         self.Q = 0                  # in \mathbb{Z}_8
         self.D = np.zeros(k)        # in {0,2,4,6}^k
-        self.J = np.zeros((k, k))   # in {0,4}^{k\times k}, symmetric
+        self.J = np.zeros((k, k))   # in {0,4}^{k\times k}, symmetric, diagonal is 2*self.D
 
+    # print some python code that initializes the state. Handy for debugging.
     def print(self):
         print("state.n = " + str(self.n))
         print("state.k = " + str(self.k))
@@ -392,46 +393,15 @@ class StabilizerState:
                 break
         k = n - d
 
-        if True:  # test: algorithm that does not require rank verification
-            # create the state object. __init__ gives the correct properties
-            state = StabilizerState(n, n)
+        # create the state object. __init__ gives the correct properties
+        state = StabilizerState(n, n)
 
-            # randomly shrink until it has the right dimension
-            while state.k > k:
-                xi = np.random.random_integers(0, 1, n)
-                state.shrink(xi, 0, lazy=True)
-
-        else:
-            # special case
-            if (d == 0):
-                X = np.array([])
-            else:
-                # rank calculation
-                from itertools import combinations as comb
-
-                def fullrank(X, d, n):
-                    for i in comb(range(n), d):
-                        rank = np.linalg.det(X[:, i])
-                        if rank % 2 == 1:
-                            return True
-                    return False
-
-                # pick random X in \mathbb{F}^{d,n}_2 with rank d
-                while True:
-                    X = np.random.random_integers(0, 1, (d, n))
-
-                    if fullrank(X, d, n): break
-
-            # create the state object. __init__ gives the correct properties
-            state = StabilizerState(n, n)
-
-            for a in range(d):
-                # lazy shrink with a'th row of X
-                state.shrink(X[a], 0, lazy=True)
-
-                # reset state's k after shrinking
-                # state.k = k
-            if (state.k != k): print("Bad k")
+        # Alternate algorithm that does not require rank verification
+        # of a separate matrix X.
+        # randomly shrink until it has the right dimension
+        while state.k > k:
+            xi = np.random.random_integers(0, 1, n)
+            state.shrink(xi, 0, lazy=True)
 
         # now K = ker(X) and is in standard form
 

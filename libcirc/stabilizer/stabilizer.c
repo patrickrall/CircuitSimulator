@@ -732,12 +732,8 @@ void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2
 		}
 	}	
 
-
     if(exact == 0){
-        //printStabilizerState(state);
 		exponentialSum(state, eps, p, m, ans, 0);
-        //printStabilizerState(state);
-		//exponentialSum(state, eps, p, m, ans, 0);
 		*ans = gsl_complex_mul_real(*ans, pow(2, -((double)state1->k + (double)state2temp->k)/2));
 	}
 	else{
