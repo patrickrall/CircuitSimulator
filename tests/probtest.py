@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 from libcirc.probability import probability
 
-# todo = [1,2,3,4,5,6,7]
+todo = [1]
 # todo = [1,2,3]
-todo = [5,6,7]
+# todo = [5,6,7]
 
 keys = ["success", "confidence", "output", "error", "std", "targeterr"]
 data = {"num":{}, "denom":{}}
@@ -36,7 +36,7 @@ ntests = 300
 
 title += "\n Samples: " + str(L) + ", Failure probability: " + str(np.round(pf*100,3)) + "%"
 # python
-python = False
+python = True
 if python: title += ", Python backend"
 else: title += ", C backend"
 

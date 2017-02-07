@@ -1,215 +1,86 @@
 #
 # file: sample.py
-# construct a stabilizer decomposition of |H^(\otimes t)>
-# Sample from || \Pi |H^(\otimes t)>
+# Programmatical interface for sampling algorithm.
 #
 
 import numpy as np
-from multiprocessing import Pool
-from libcirc.stabilizer.stabilizer import StabilizerState
+from libcirc.probability import probability
 
 
-# Needs from config dict: exact, k, fidbound, rank, fidelity, forceL, verbose, quiet
-def decompose(t, config):
-    quiet = config.get("quiet")
+# sample output from a subset of the qubits
+# arguments are same as in probability
+# sample is a list of integer indexes, with 0 being the first qubit.
+#
+# if config["exact"] is unspecified, the default is now False
+# also config["file"] is disabled
+def sampleQubits(circ, measure, sample, config={}):
+    # unpack config
     verbose = config.get("verbose")
+    if config.get("exact") is None: config["exact"] = False
+    config["file"] = None
 
-    # trivial case
-    if t == 0:
-        return np.array([[]]), 1
+    def prob(measure, exact=None):  # shortcut
+        if exact is not None:
+            old = config["exact"]
+            config["exact"] = exact
+        P = probability(circ, measure, config=config)
+        if exact is not None: config["exact"] = old
+        return P
 
-    v = np.cos(np.pi/8)
+    # recursive implementation: need the probability of sampling a smaller
+    # set of qubits in order to sample next one
+    def recursiveSample(qubits, measure):
+        if len(qubits) == 1:  # base case
+            Psofar = 1  # overridden if constraints present
 
-    # exact case
-    norm = (2)**(np.floor(t/2)/2)
-    if (t % 2 == 1): norm *= (2*v)
-    if config.get("exact"): return None, norm
+            # is a sample even possible? Some qubit constraints are unsatisfiable.
+            if len(measure.keys()) != 0:  # other measurements present
+                Psofar = prob(measure, exact=True)
+                if verbose: print("Constraints present. Probability of satifying: %f\n" % Psofar)
+                if Psofar == 0: return "", {}, 0  # not satisfiable
+                if Psofar < 1e-5:
+                    print("Warning: probability of satisfying qubit constraints very low (%f). Could be impossible." % Psofar)
 
-    k = config.get("k")
-    forceK = (k is not None)  # Was k selected by the user
+            # compute probability
+            measure[qubits[0]] = 0
+            P = prob(measure)
+            P0 = P/Psofar
 
-    if k is None:
-        if config.get("fidbound") is None:
-            raise ValueError("Need to specify either k or fidbound, or set exact=True to determine sampling method.")
-        # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
-        k = np.ceil(1 - 2*t*np.log2(v) - np.log2(config.get("fidbound")))
-        if verbose: print("Autopicking k = %d." % k)
-    k = int(k)
+            if verbose:
+                print("Measuring qubit %d: P(0) = %f" % (qubits[0], P))
+                if len(measure.keys()) != 0:
+                    print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
 
-    # can achieve k = t/2 by pairs of stabilizer states
-    # revert to exact norm
-    if k > t/2 and not forceK and not config.get("forceL"):
-        if verbose: print("k > t/2. Reverting to exact decomposition.")
-        return None, norm
+            # sample
+            qubit = 0 if np.random.random() < P0 else 1
+            if verbose: print("-> Sampled " + str(qubit) + "\n")
 
-    # prevents infinite loops
-    if (k > t):
-        if forceK and not quiet: print("Can't have k > t. Setting k to %d." % t)
-        k = t
+            measure[qubits[0]] = qubit
 
-    innerProd = 0
-    Z_L = None
+            # return sample and probability of sample occurring
+            return str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
+        else:
+            qubitssofar, measure, Psofar = recursiveSample(qubits[:-1], measure)
 
-    while innerProd < 1-config.get("fidbound") or forceK:
+            if qubitssofar == "": return "", {}, 0  # not satisfiable
 
-        L = np.random.random_integers(0, 1, (k, t))
+            # compute conditional probability
+            measure[qubits[-1]] = 0
+            P = prob(measure)
+            P0 = P/Psofar
+            if verbose:
+                print("Probability with qubit %d: %f" % (qubits[-1], P))
+                print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
 
-        if (config.get("rank")):
-            # check rank
-            if (np.linalg.matrix_rank(L) < k):
-                if not quiet: print("L has insufficient rank. Sampling again...")
-                continue
+            # sample
+            qubit = 0 if np.random.random() < P0 else 1
+            if verbose:
+                print("-> Sampled: " + str(qubit))
+                print("-> Sample so far: " + qubitssofar + str(qubit) + "\n")
 
-        if config.get("fidelity"):
-            # compute Z(L) = sum_x 2^{-|x|/2}
-            Z_L = 0
-            for i in range(2**k):
-                z = np.array(list(np.binary_repr(i, width=k))).astype(int)[::-1]
-                x = np.dot(z, L) % 2
-                Z_L += 2**(-np.sum(x)/2)
+            measure[qubits[-1]] = qubit
 
-            innerProd = 2**k * v**(2*t) / Z_L
-            if forceK:
-                # quiet can't be set for this
-                print("Inner product <H^t|L>: %f" % innerProd)
-                break
-            elif innerProd < 1-config.get("fidbound"):
-                if not quiet: print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
-            else:
-                if not quiet: print("Inner product <H^t|L>: %f" % innerProd)
-        else: break
+            return qubitssofar + str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
 
-    if config.get("fidelity"):
-        norm = np.sqrt(2**k * Z_L)
-        return L, norm
-    else:
-        return L, None
-
-
-# Inner product for some state in |L> ~= |H^t>
-def evalLcomponent(args):
-    (i, L, theta, t, exact) = args  # unpack arguments (easier for parallel code)
-
-    # compute bitstring by adding rows of l
-    Lbits = list(np.binary_repr(i, width=len(L)))
-    bitstring = np.zeros(t)
-    for idx in range(len(Lbits)):
-        if Lbits[idx] == '1':
-            bitstring += L[idx]
-    bitstring = bitstring.astype(int) % 2
-
-    # Stabilizer state is product of |0> and |+>
-    # 1's in bitstring indicate positions of |+>
-
-    # initialize stabilizer state
-    phi = StabilizerState(t, t)
-
-    # construct state using shrink
-    for xtildeidx in range(t):
-        if bitstring[xtildeidx] == 0:
-            vec = np.zeros(t)
-            vec[xtildeidx] = 1
-            phi.shrink(vec, 0)
-            # |0> at index, inner prod with 1 is 0
-        # |+> at index -> do nothing
-
-    return StabilizerState.innerProduct(theta, phi, exact=exact)
-
-
-# Inner product for some state in |H^t> using pairwise decomposition
-def evalHcomponent(args):
-    (i, _, theta, t, exact) = args  # unpack arguments (easier for parallel code)
-
-    size = int(np.ceil(t/2))
-    odd = t % 2 == 1
-
-    bits = list(np.binary_repr(i, width=size))
-
-    # initialize stabilizer state
-    phi = StabilizerState(t, t)
-
-    # set J matrix
-    for idx in range(size):
-        bit = int(bits[idx])
-        if bit == 0 and not (odd and idx == size-1):
-            # phi.J = np.array([[0, 4], [4, 0]])
-            phi.J[idx*2+1, idx*2] = 4
-            phi.J[idx*2, idx*2+1] = 4
-
-    # truncate affine space using shrink
-    for idx in range(size):
-        bit = int(bits[idx])
-        vec = np.zeros(t)
-
-        if odd and idx == size-1:
-            # bit = 0 is |+>
-            # bit = 1 is |0>
-            if bit == 1:
-                vec[t-1] = 1
-                phi.shrink(vec, 0)
-            continue
-
-        # bit = 1 corresponds to |00> + |11> state
-        # bit = 0 corresponds to |00> + |01> + |10> - |11>
-
-        if bit == 1:
-            vec[idx*2] = 1
-            vec[idx*2+1] = 1
-            phi.shrink(vec, 0)  # only 00 and 11 have inner prod 0 with 11
-
-    innerProd = StabilizerState.innerProduct(theta, phi, exact=exact)
-    return innerProd
-
-
-# Evaluate || <theta| P |H^t> ||^2 for a random stabilizer state theta.
-def sampleProjector(args):
-    (P, L, seed, parallel) = args  # unpack arguments (easier for parallel code)
-    (phases, xs, zs) = P
-
-    # empty projector
-    if len(phases) == 0:
-        return 1
-
-    t = len(xs[0])
-
-    # clifford circuit
-    if t == 0:
-        lookup = {0: 1, 2: -1}
-        generators = [1]  # include identity
-        for phase in phases: generators.append(lookup[phase])
-
-        # calculate sum of all permutations of generators
-        return sum(generators)/len(generators)
-
-    # init seed
-    np.random.seed(seed)
-
-    # sample random theta
-    theta = StabilizerState.randomStabilizerState(t)
-
-    # project random state to P
-    projfactor = 1
-    logprojfactor = 0
-    for g in range(len(phases)):
-        res = theta.measurePauli(phases[g], zs[g], xs[g])
-        projfactor *= res
-        if res != 0 and res != 1: logprojfactor += 1
-
-        if res == 0: return 0  # theta annihilated by P
-
-    if L is None:  # use exact decomp into pairs of stabilizer states
-        func = evalHcomponent
-        size = int(np.ceil(t/2))  # need one bit for each pair, plus one more if t is odd
-    else:
-        func = evalLcomponent
-        size = len(L)
-
-    if parallel:  # parallelize for large enough L
-        pool = Pool()
-        total = sum(pool.map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
-        pool.close()
-        pool.join()
-    else:
-        total = sum(map(func, [(i, L, theta, t, False) for i in range(0, 2**size)]))
-
-    return 2**t * np.abs(projfactor*total)**2
+    output, _, _ = recursiveSample(sample, measure)
+    return output

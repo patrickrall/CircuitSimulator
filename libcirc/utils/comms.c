@@ -1,16 +1,10 @@
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
-#include "utils.h"
+#include "comms.h"
 #include "mpi.h"
-#include <gsl/gsl_matrix.h>
-#include <gsl/gsl_blas.h>
-#include <gsl/gsl_math.h>
-#include <gsl/gsl_complex.h>
-#include <gsl/gsl_complex_math.h>
-#include <gsl/gsl_linalg.h>
 
 
-// Basics
 /************* Helpers for reading and printing projectors *************/
 struct Projector* readProjector(FILE* stream) {
     struct Projector *P = (struct Projector *)malloc(sizeof(struct Projector));
@@ -82,39 +76,7 @@ void printProjector(struct Projector *P) {
     }
 }
 
-
-char *binrep (unsigned int val, char *buff, int sz) {
-    char *pbuff = buff;
-
-    /* Must be able to store one character at least. */
-    if (sz < 1) return NULL;
-
-    /* Special case for zero to ensure some output. */
-    if (val == 0) {
-        for (int i=0; i<sz; i++) *pbuff++ = '0';
-        *pbuff = '\0';
-        return buff;
-    }
-
-    /* Work from the end of the buffer back. */
-    pbuff += sz;
-    *pbuff-- = '\0';
-
-    /* For each bit (going backwards) store character. */
-    while (val != 0) {
-        if (sz-- == 0) return NULL;
-        *pbuff-- = ((val & 1) == 1) ? '1' : '0';
-
-        /* Get next bit. */
-        val >>= 1;
-    }
-    while (sz-- != 0) *pbuff-- = '0';
-    return pbuff+1;
-}
-
 // Comms
-
-
 //----------- int macro
 void send_int(int i, int dest) {
     MPI_Send(&i, 1, MPI_INT, dest, 0, MPI_COMM_WORLD);
@@ -216,7 +178,10 @@ struct Projector* recv_projector(int src) {
 }
 
 //---------- stabilizer states
-void send_stabilizer_state(struct StabilizerState* state, int dest) {
+// implemented, but not needed anywhere
+/*
+void send_stabilizer_state(void* statein, int dest) {
+    struct StabilizerState* state = (struct StabilizerState*)statein;
     send_int(state->n, dest);
     send_int(state->k, dest);
 
@@ -228,7 +193,7 @@ void send_stabilizer_state(struct StabilizerState* state, int dest) {
     send_gsl_vector(state->D, dest);
     send_gsl_matrix(state->J, dest);
 }
-struct StabilizerState *recv_stabilizer_state(int src) {
+void* recv_stabilizer_state(int src) {
     int n = recv_int(src);
     int k = recv_int(src);
 
@@ -240,5 +205,6 @@ struct StabilizerState *recv_stabilizer_state(int src) {
     state->Q = recv_int(src);
     state->D = recv_gsl_vector(src);
     state->J = recv_gsl_matrix(src);
-    return state;
+    return (void*)state;
 }
+*/

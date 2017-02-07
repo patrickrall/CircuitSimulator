@@ -1,6 +1,9 @@
-#include "../stabilizer/stabilizer.h"
+#include <gsl/gsl_vector.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_complex.h>
+#include <gsl/gsl_complex_math.h>
 
-// Basics
+// Projectors
 struct Projector {
     int Nstabs;
     int Nqubits;
@@ -8,10 +11,9 @@ struct Projector {
     gsl_matrix* xs;
     gsl_matrix* zs; 
 };
+
 struct Projector* readProjector(FILE* stream);
 void printProjector(struct Projector *P);
-
-char* binrep(unsigned int val, char *buff, int sz);
 
 // Communication
 void send_int(int i, int dest);
@@ -32,7 +34,7 @@ gsl_complex recv_gsl_complex(int src);
 void send_projector(struct Projector* P, int dest);
 struct Projector* recv_projector(int src);
 
-void send_stabilizer_state(struct StabilizerState* state, int dest);
-struct StabilizerState *recv_stabilizer_state(int src);
-
-
+// implemented, but not needed anywhere
+// uses void* to avoid inclusion difficulties
+// void send_stabilizer_state(void* state, int dest);
+// void* recv_stabilizer_state(int src);

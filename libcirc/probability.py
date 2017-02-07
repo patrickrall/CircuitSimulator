@@ -1,19 +1,13 @@
 #
 # file: probability.py
-# Programmatical interface for application. Implements probability
-# subroutine and sampling algorithm.
+# Programmatical interface for the probability algorithm.
 #
 
-import sys
 import numpy as np
-from multiprocessing import Pool
-from subprocess import PIPE, Popen
-import os
-
-from libcirc.sample import decompose, sampleProjector
+from libcirc.innerprod import *
 import libcirc.compile.projectors as projectors
-from libcirc.noapprox import exactProjector
-
+import os
+from subprocess import PIPE, Popen
 
 # calculate probability that a compiled circuit yields a measurement
 # circ is a compiled quantum circuit.
@@ -21,25 +15,33 @@ from libcirc.noapprox import exactProjector
 # measure is a dictionary with zero-indexed qubit indexes and measurement values.
 # E.g. to calculate the probabilty of measuring 1 for the first qubit use {0:1}
 #
-# samples governs the accuracy. 1e4 gives error < 0.01 with 95% chance.
-#
 # config is dictionary with several optional parameters.
 # Read below for details. The value in the comment is the default value.
 # config = {
 #         Logging parameters
 #     "verbose": False,  # print useful information
 #     "silenceprojectors": False, # do not print projectors despite verbosity
-#     "quiet": False, # silence all warning messages and progress bars. Overridden by verbose.
-#     "direct": False, # returns tuple (numerator, denominator) rather than the ratio
+#     "quiet": False,    # silence all warning messages and progress bars. Overridden by verbose.
+#     "direct": False,   # returns tuple (numerator, denominator) rather than the ratio
 #
 #         Sampling method specification parameters.
-#         noapprox overrides exact, exact overrides k, k overrides fidbound.
+#         Calculate inner product exactly, or approximately by averaging samples
+#         from a probability distribution? How many samples? Use median of means?
+#     "noapprox": False,  # Don't randomize at all. Square of the runtime of approximate alg.
+#     "samples": 2000,    # Mean of 2000 samples gives mult. error 0.1 with 95% probability.
+#     "bins": 1,          # Number of groups of samples over which to take the median.
+#         Instead of manually setting samples and bins, can also auto-pick. Changing
+#         either of these from their default value will override samples and bins options.
+#     "error": 0.1,       # Multiplicative error of inner product.
+#     "failprob": 0.05    # Probability of output being worse than that error.
+#
+#         State preparation parameters: Use |H> or |L>? If |L>, how big?
+#         exact overrides k, k overrides fidbound.
 #         exact=True by default, so set exact=False to use k or fidbound.
 #               Note: the main.py front end will set exact=False for you
 #                     if k or fidbound options are set.
 #         If exact=False then at least one of k or fidbound must be set.
 #         fidelity=True is ignored if exact=True or k is set.
-#     "noapprox": False,  #  Don't approximate at all (slow)
 #     "exact": True,   # Use |H> instead of |L>
 #     "k": None,   # size of L matrix defining |L>
 #     "fidbound": 1e-5, # inner product <L|H> must be this close to 1
@@ -52,36 +54,29 @@ from libcirc.noapprox import exactProjector
 #         If python=False, then cpath must be specified. Default value of
 #         cpath should be good if executing from the repo root directory.
 #     "python": False,  # Use python backend
-#     "cpath": "libcirc/sample",  # Location of c executable
+#     "cpath": "libcirc/mpibackend",  # Location of c executable
 #     "mpirun": "/usr/bin/mpirun",  # Location of mpirun executable, and any options
 #     "procs": None,  # number of processes. If unset python or mpi will pick automatically.
-#     "stateParallel": False, # Parallelize over state decomposition.
-#                             # More overhead, but gives progress bar.
 #     "file": None, # instead of using c backend, print instructions to file
 #
 #         Debug. x and y determine the projectors, but are arbitrary in the end.
 #         If unspecified they are selected at random, as required by the sampling algorithm.
-#     "noparallel": False  # Don't parallelize at all
 #     "x": None,   # Specify postselected other measurements
 #     "y": None,   # Specify postselected T measurements
 #     "forceL": False,  # use L sampling even when exact sampling is more efficient
 #                           Setting k does this automatically.
 # }
 # For more details see the command line's help text or the documentation
-def probability(circ, measure, samples=1e4, config={}):
+def probability(circ, measure, config={}):
     # unpack, configure default values
     verbose = config.get("verbose")
     if verbose: config["quiet"] = False
     quiet = config.get("quiet")
-    if config.get("noapprox") is True:
-        config["noparallel"] = True
-        config["exact"] = False
     if config.get("exact") is None: config["exact"] = True
     if config.get("fidbound") is None: config["fidbound"] = 1e-5
-    if config.get("cpath") is None: config["cpath"] = "libcirc/sample"
+    if config.get("cpath") is None: config["cpath"] = "libcirc/mpibackend"
     if config.get("mpirun") is None: config["mpirun"] = "/usr/bin/mpirun"
     if config.get("procs") is 0: config["procs"] = None
-    samples = int(samples)
 
     # if k is used for L calculation, then fidelity=True is only for display.
     # thus set fidelity=False if quiet flag is set.
@@ -90,7 +85,35 @@ def probability(circ, measure, samples=1e4, config={}):
             config["fidelity"] = False
 
     # get projectors
-    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose, x=config.get("x"), y=config.get("y"))
+    G, H, n, t = projectors.projectors(circ, measure, verbose=verbose,
+            x=config.get("x"), y=config.get("y"))
+
+    # configure sampling
+    if not config.get("noapprox"):
+        if not config.get("samples"): config["samples"] = 2000
+        if not config.get("bins"): config["bins"] = 1
+        if not config.get("error"): config["error"] = 0.1
+        if not config.get("failprob"): config["failprob"] = 0.05
+
+        if config.get("error") is not 0.1 or config.get("failprob") is not 0.05:
+            # auto-pick samples and bins.
+            chi = (2**t - 1)/(2**t + 1)
+            if config.get("failprob") < 0.0076:  # median of means worth it
+                config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
+                config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
+            else:  # just take the mean: L = chi/(p * e^2)
+                config["samples"] = int(np.ceil(chi * config.get("error")**(-2)
+                    * config.get("failprob")**(-1)))
+                config["bins"] = 1
+
+            if not quiet:
+                print("Autopicking median of %d bins with %d samples per bin."
+                        % (config["bins"], config["samples"]))
+                print("Ensure that the number of parallel cores is greater than %d."
+                        % config["samples"])
+
+    if verbose:
+        print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
@@ -136,9 +159,9 @@ def probability(circ, measure, samples=1e4, config={}):
         config["exact"] = True
 
     # Clifford circuit? Don't bother calling c implementation.
-    # if t == 0:
-    #     if not quiet: print("Clifford circuit. Reverting to python implementation.")
-    #     config["python"] = True
+    if t == 0:
+        if not quiet: print("Clifford circuit. Reverting to python implementation.")
+        config["python"] = True
 
     # verify existence of executable
     if not config.get("python"):
@@ -154,63 +177,30 @@ def probability(circ, measure, samples=1e4, config={}):
     # ------------------------------------ Python backend ------------------------------------
     if config.get("python"):
         # calculate |L> ~= |H>
-        L, Lnorm = decompose(t, config)
+        L, norm = decompose(t, config)
+
+        # Don't need norm if both projectors are nontrivial
+        if not (len(Gprime[0]) == 0 or len(Hprime[0]) == 0): norm = 1
 
         if verbose:
-            if L is None: print("Using exact decomposition of |H^t>: 2^%d" % t)
+            if L is None: print("Using exact decomposition of |H^t>: 2^%d" % np.ceil(t/2))
             else: print("Stabilizer rank of |L>: 2^%d" % len(L))
 
-        # parallelization
-        stateParallel = config.get("stateParallel")
-        # calculate || Gprime |L> ||^2 and || Hprime |L> ||^2 up to a constant
-        if not config.get("noparallel"):
-            if not stateParallel:
-                if verbose: print("Parallelizing over %d samples" % samples)
-                # set up thread pool
-                pool = Pool(config.get("procs"))
-            else:
-                if verbose:
-                    if L is None: print("Parallelizing over %d stabilizers in |H^t>" % 2**np.ceil(t/2))
-                    else: print("Parallelizing over %d stabilizers in |L>" % 2**len(L))
-                pool = None
-        else:
-            if not quiet: print("Parallelism disabled for debugging.")
-            pool = None
-            stateParallel = 0
-
-        # helper for preventing needless sampling trivial projectors or circuits
-        def calcProjector(P, name=""):
-            if Lnorm is not None and (len(P[0]) == 0 or len(P[1][0]) == 0):
-                # empty projector or Clifford circuit. No repeated sampling needed.
-                return samples * sampleProjector((P, L, 0, False)) * np.abs(Lnorm)**2
-
-            if pool is not None:
-                seeds = np.random.random_integers(0, 2**32-1, samples)
-                queries = [(P, L, seed, stateParallel) for seed in seeds]
-                return sum(pool.map(sampleProjector, queries))
-
-            # show progress when not parallelizing over samples
-            out = 0
-            for i in range(0, samples):
-                seed = np.random.random_integers(0, 2**32-1)
-                out += sampleProjector((P, L, seed, stateParallel))
-                print(name + ": %d/%d samples" % (i+1, samples), end="\r")
-            return out
-
         if config.get("noapprox"):
-            numerator = exactProjector(Gprime, Lnorm)
-            denominator = exactProjector(Hprime, Lnorm)
+            numerator = exactProjector(Gprime, L, norm, procs=config.get("procs"))
+            denominator = exactProjector(Hprime, L, norm, procs=config.get("procs"))
         else:
-            numerator = calcProjector(Gprime, name="Numerator")
-            denominator = calcProjector(Hprime, name="Denominator")
-
-        if pool is not None:
-            pool.close()
-            pool.join()
+            numerator = multiSampledProjector(Gprime, L, norm, samples=config.get["samples"],
+                    bins=config.get("bins"), procs=config.get("procs"))
+            denominator = multiSampledProjector(Hprime, L, norm, samples=config.get["samples"],
+                    bins=config.get("bins"), procs=config.get("procs"))
 
     else:
         # --------------------------------------- C backend --------------------------------------
+
+        # --------------- Helpers ------------
         def send(s):
+            if s is None: s = 0
             return (str(s) + "\n").encode()
 
         def writeProjector(projector):
@@ -229,6 +219,7 @@ def probability(circ, measure, samples=1e4, config={}):
 
             return dat
 
+        # --------------- mpirun command ------------
         if not config.get("file"):
             executable = config["mpirun"].split()
             if config.get("procs") is not None:
@@ -238,29 +229,34 @@ def probability(circ, measure, samples=1e4, config={}):
 
             p = Popen(executable, stdin=PIPE, stdout=PIPE, stderr=PIPE, bufsize=1)
 
+        # --------------- input data ------------
         indat = b""
 
-        indat += send(len(Gprime[1][0]))  # t
-
-        if config.get("k") is None: indat += send(0)  # k
-        else: indat += send(config["k"])
-
+        # Logging
         indat += send(1 if config.get("quiet") else 0)  # quiet
         indat += send(1 if config.get("verbose") else 0)  # verbose
 
-        indat += send(config.get("fidbound") if config.get("fidbound") else 1e-5)  # fidbound
+        # Sampling method
+        indat += send(1 if config.get("noapprox") else 0)  # noapprox
+        indat += send(config.get("samples"))  # samples
+        indat += send(config.get("bins"))  # bins
+
+        # State prep
+        indat += send(len(Gprime[1][0]))  # t
+        indat += send(config.get("k"))  # k
         indat += send(1 if config.get("exact") else 0)  # exact
-        indat += send(1 if config.get("rank") else 0)  # rank
-        indat += send(1 if config.get("forceK") else 0)  # forceK
+        indat += send(config.get("fidbound") if config.get("fidbound") else 1e-5)  # fidbound
         indat += send(1 if config.get("fidelity") else 0)  # fidelity
+        indat += send(1 if config.get("rank") else 0)  # rank
 
-        indat += send(1 if config.get("stateParallel") else 0)  # stateParallel
+        # Debug
+        indat += send(1 if config.get("forceL") else 0)  # forceL
 
+        # Projectors
         indat += writeProjector(Gprime)
         indat += writeProjector(Hprime)
 
-        indat += send(samples)  # samples
-
+        # --------------- write to file ------------
         if config.get("file"):
             f = open(config.get("file"), "w")
             f.write(indat.decode())
@@ -268,6 +264,7 @@ def probability(circ, measure, samples=1e4, config={}):
 
             return None
 
+        # --------------- run the backend ------------
         p.stdin.write(indat)
         p.stdin.flush()
 
@@ -325,83 +322,106 @@ def probability(circ, measure, samples=1e4, config={}):
     return prob
 
 
-# sample output from a subset of the qubits
-# arguments are same as in probability
-# sample is a list of integer indexes, with 0 being the first qubit.
-#
-# if config["exact"] is unspecified, the default is now False
-# also config["file"] is disabled
-def sampleQubits(circ, measure, sample, samples=1e4, config={}):
-    # unpack config
+# Needs from config dict: exact, k, fidbound, rank, fidelity, forceL, verbose, quiet
+def decompose(t, config):
+    quiet = config.get("quiet")
     verbose = config.get("verbose")
-    if config.get("exact") is None: config["exact"] = False
-    config["file"] = None
 
-    def prob(measure, exact=None):  # shortcut
-        if exact is not None:
-            old = config["exact"]
-            config["exact"] = exact
-        P = probability(circ, measure, samples=samples, config=config)
-        if exact is not None: config["exact"] = old
-        return P
+    # trivial case
+    if t == 0:
+        return None, 1
 
-    # recursive implementation: need the probability of sampling a smaller
-    # set of qubits in order to sample next one
-    def recursiveSample(qubits, measure):
-        if len(qubits) == 1:  # base case
-            Psofar = 1  # overridden if constraints present
+    v = np.cos(np.pi/8)
 
-            # is a sample even possible? Some qubit constraints are unsatisfiable.
-            if len(measure.keys()) != 0:  # other measurements present
-                Psofar = prob(measure, exact=True)
-                if verbose: print("Constraints present. Probability of satifying: %f\n" % Psofar)
-                if Psofar == 0: return "", {}, 0  # not satisfiable
-                if Psofar < 1e-5:
-                    print("Warning: probability of satisfying qubit constraints very low (%f). Could be impossible." % Psofar)
+    # exact case
+    norm = (2)**(np.floor(t/2)/2)
+    if (t % 2 == 1): norm *= (2*v)
+    if config.get("exact"): return None, norm
 
-            # compute probability
-            measure[qubits[0]] = 0
-            P = prob(measure)
-            P0 = P/Psofar
+    k = config.get("k")
+    forceK = (k is not None)  # Was k selected by the user
 
-            if verbose:
-                print("Measuring qubit %d: P(0) = %f" % (qubits[0], P))
-                if len(measure.keys()) != 0:
-                    print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
+    if k is None:
+        if config.get("fidbound") is None:
+            raise ValueError("Need to specify either k or fidbound, or set exact=True to determine sampling method.")
+        # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
+        k = np.ceil(1 - 2*t*np.log2(v) - np.log2(config.get("fidbound")))
+        if verbose: print("Autopicking k = %d." % k)
+    k = int(k)
 
-            # sample
-            qubit = 0 if np.random.random() < P0 else 1
-            if verbose: print("-> Sampled " + str(qubit) + "\n")
+    # can achieve k = t/2 by pairs of stabilizer states
+    # revert to exact norm
+    if k > t/2 and not forceK and not config.get("forceL"):
+        if verbose: print("k > t/2. Reverting to exact decomposition.")
+        return None, norm
 
-            measure[qubits[0]] = qubit
+    # prevents infinite loops
+    if (k > t):
+        if forceK and not quiet: print("Can't have k > t. Setting k to %d." % t)
+        k = t
 
-            # return sample and probability of sample occurring
-            return str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
-        else:
-            qubitssofar, measure, Psofar = recursiveSample(qubits[:-1], measure)
+    innerProd = 0
+    Z_L = None
 
-            if qubitssofar == "": return "", {}, 0  # not satisfiable
+    while innerProd < 1-config.get("fidbound") or forceK:
 
-            # compute conditional probability
-            measure[qubits[-1]] = 0
-            P = prob(measure)
-            P0 = P/Psofar
-            if verbose:
-                print("Probability with qubit %d: %f" % (qubits[-1], P))
-                print("Conditional probability of qubit %d: P(0) = %f" % (qubits[-1], P0))
+        L = np.random.random_integers(0, 1, (k, t))
 
-            # sample
-            qubit = 0 if np.random.random() < P0 else 1
-            if verbose:
-                print("-> Sampled" + qubit)
-                print("-> Sample so far:" + qubitssofar + str(qubit) + "\n")
+        if (config.get("rank")):
+            # check rank by computing null space
 
-            measure[qubits[-1]] = qubit
+            # init with identity
+            Null = []
+            for i in range(t):
+                row = np.zeros(t)
+                row[i] = 1
+                Null.append(row)
 
-            return qubitssofar + str(qubit), measure, (P0 if qubit == 0 else (1 - P0))
+            # orthogonalize null space for every row in L
+            for i in range(len(L)):
+                row = L[i]
+                good = []  # inner prod 0
+                bad = []  # inner prod 1
 
-    output, _, _ = recursiveSample(sample, measure)
-    return output
+                for g in Null:
+                    if np.inner(row, g) % 2 == 0: good.append(g)
+                    else: bad.append(g)
+
+                # add together rows with inner prod 1
+                corrected = []
+                for i in range(len(bad) - 1):
+                    corrected.append((bad[i] + bad[i+1]) % 2)
+                Null = good + corrected
+
+            rank = t - len(Null)
+            if (rank < k):
+                if not quiet: print("L has insufficient rank. Sampling again...")
+                continue
+
+        if config.get("fidelity"):
+            # compute Z(L) = sum_x 2^{-|x|/2}
+            Z_L = 0
+            for i in range(2**k):
+                z = np.array(list(np.binary_repr(i, width=k))).astype(int)[::-1]
+                x = np.dot(z, L) % 2
+                Z_L += 2**(-np.sum(x)/2)
+
+            innerProd = 2**k * v**(2*t) / Z_L
+            if forceK:
+                # quiet can't be set for this
+                print("Inner product <H^t|L>: %f" % innerProd)
+                break
+            elif innerProd < 1-config.get("fidbound"):
+                if not quiet: print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
+            else:
+                if not quiet: print("Inner product <H^t|L>: %f" % innerProd)
+        else: break
+
+    if config.get("fidelity"):
+        norm = np.sqrt(2**k * Z_L)
+        return L, norm
+    else:
+        return L, None
 
 
 def printProjector(projector):
