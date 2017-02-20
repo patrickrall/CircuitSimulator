@@ -9,7 +9,7 @@ import sys
 sys.path.append(os.path.abspath('.'))
 
 from libcirc.probability import probability  # import issues? see comment in file!
-from libcirc.compilecirc import compileCircuit
+from libcirc.compile.compilecirc import compileCircuit
 # import issues? Try executing from root directory: python circuits/hiddenshift.py
 # You can also try adding the root directory to your python path.
 
@@ -18,7 +18,7 @@ from datetime import datetime
 
 # ######## CONFIG ######## #
 n = 40  # length of shift string
-toff = 1  # number of toffoli's per O_f
+toff = 5  # number of toffoli's per O_f
 randcliff = 200  # number of random Cliffords in between CCZ's
 
 # probability algorithm precision parameters
@@ -61,6 +61,7 @@ def addCliffords():
             line[loc1] = "C"
             line[loc2] = "Z"
         Og.append("".join(line))
+
 
 addCliffords()
 for i in range(toff):  # pick toffolis
@@ -147,18 +148,11 @@ print("%d hidden shift bits, %d qubits, %d T gates, %d samples, k=%d" %
 # ####### RUN ALGORITHM ######## #
 
 config = {
-    "verbose": False,
-    "parallel": True,
+    "procs": 8,
     "samples": samples,
-    "fidbound": 1e-5,
     "k": k,
     "exact": False,
-    "rank": False,
-    "fidelity": True,
-    "y": None,
-    "x": None,
-    "python": False,
-    "cpath": "libcirc/sample",
+    "rank": True,
 }
 
 
@@ -167,7 +161,7 @@ starttime = datetime.now()
 results = []
 for i in range(n):
     measure = {i: 1}
-    result = probability(compiled, measure, config)
+    result = probability(compiled, measure, config=config)
 
     print("Bit %d: %f" % (i, result))
     results.append(result)

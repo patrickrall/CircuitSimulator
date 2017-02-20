@@ -33,12 +33,8 @@ int main(int argc, char* argv[]) {
 
     gsl_set_error_handler_off();
    
-    if (world_rank == 0) {
-        clock_t begin = clock(); 
-        master(argc, argv);
-        clock_t end = clock(); 
-        printf("time elapsed: %f sec\n", (double)(end - begin)/CLOCKS_PER_SEC);
-    } else slave();
+    if (world_rank == 0) master(argc, argv);
+    else slave();
 
     MPI_Finalize();
     return 0;
