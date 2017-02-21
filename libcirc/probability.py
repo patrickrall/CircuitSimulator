@@ -190,9 +190,9 @@ def probability(circ, measure, config={}):
             numerator = exactProjector(Gprime, L, norm, procs=config.get("procs"))
             denominator = exactProjector(Hprime, L, norm, procs=config.get("procs"))
         else:
-            numerator = multiSampledProjector(Gprime, L, norm, samples=config.get["samples"],
+            numerator = multiSampledProjector(Gprime, L, norm, samples=config.get("samples"),
                     bins=config.get("bins"), procs=config.get("procs"))
-            denominator = multiSampledProjector(Hprime, L, norm, samples=config.get["samples"],
+            denominator = multiSampledProjector(Hprime, L, norm, samples=config.get("samples"),
                     bins=config.get("bins"), procs=config.get("procs"))
 
     else:
