@@ -32,7 +32,7 @@ class StabilizerState:
         self.J = np.zeros((k, k))   # in {0,4}^{k\times k}, symmetric, diagonal is 2*self.D
 
     # print some python code that initializes the state. Handy for debugging.
-    def print(self):
+    def display(self):
         print("state.n = " + str(self.n))
         print("state.k = " + str(self.k))
 
