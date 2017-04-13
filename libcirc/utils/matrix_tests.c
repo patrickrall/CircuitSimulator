@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "matrix.h"
 
 
@@ -21,12 +22,11 @@ int main(void) {
     printf("Inner: %d\n", BitVectorInner(vec, vec2));
     BitVectorFree(vec);
     */
+    srand(10);
 
-    struct BitMatrix* mat = newBitMatrixIdentity(10);
-    BitMatrixSet(mat, 4,2,1);
+    struct BitMatrix* mat1 = newBitMatrixRandom(3, 3);
+    BitMatrixPrint(mat1);
 
-    BitMatrixPrint(mat);
-
-    BitMatrixFree(mat);
+    printf("Rank: %d\n", BitMatrixRank(mat1));
     return 0;
 }
