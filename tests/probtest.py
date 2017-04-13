@@ -89,6 +89,7 @@ for T in todo:
 
     # config["mpirun"] = "/usr/bin/mpirun --hostfile /home/prall/.mpi_hostfile"
     config["procs"] = 8
+    config["samples"] = L
 
     numpassed = 0
     denompassed = 0
@@ -97,7 +98,7 @@ for T in todo:
     if verbose: print("Running", ntests,"tests...")
     for i in range(ntests):
         print("Test", i+1, "/", ntests, end="\r")
-        (num, denom) = probability(circ, {0:0}, samples=L, config=config)
+        (num, denom) = probability(circ, {0:0}, config=config)
         numvalues.append(num)
         denomvalues.append(denom)
         if np.abs(tnum - num) < enum: numpassed += 1

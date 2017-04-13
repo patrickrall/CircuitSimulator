@@ -2,36 +2,49 @@
 #include <stdlib.h>
 
 struct BitVector {
-    int size;
-    int* data;
-}
+    unsigned int size;
+    unsigned char* data;
+};
 
-struct BitVector* newBitVector(int size);  // alloc and init to 0
-void freeBitVector(struct BitVector* vec);
-void copyBitVector(struct BitVector* vec1, struct BitVector* vec2);
+struct BitVector* newBitVector(unsigned int size);  // alloc and init to 0
+void BitVectorFree(struct BitVector* vec);
+void BitVectorCopy(struct BitVector* vec1, struct BitVector* vec2); // vec2 <- vec1
+void BitVectorPrint(struct BitVector* vec);
 
-void BitVectorGet(struct BitVector* vec, int loc);
-void BitVectorSet(struct BitVector* vec, int loc, int value);
+unsigned int BitVectorGet(struct BitVector* vec, unsigned int loc);
+void BitVectorSet(struct BitVector* vec, unsigned int loc, unsigned int value);
 
-void BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
+// number of positions where they coincide. Do the mod 2 yourself.
+unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
 
 struct BitMatrix {
-    int size1;
-    int size2;
-    int* data;
-}
+    unsigned int rows;
+    unsigned int cols;
+    unsigned char* data;
+};
 
-struct BitMatrix* newBitMatrixZero(int size1, int size2);  // alloc and init to 0
-struct BitMatrix* newBitMatrixEye(int size1, int size2);  // alloc and init to identity
+struct BitMatrix* newBitMatrixZero(unsigned int rows, unsigned int cols);  // alloc and init to 0
+struct BitMatrix* newBitMatrixIdentity(unsigned int rows);  // alloc and init to identity
 
-void freeBitMatrix(struct BitMatrix* mat);
-void copyBitMatrix(struct BitMatrix* mat1, struct BitMatrix* mat2);
+void BitMatrixFree(struct BitMatrix* mat);
+void BitMatrixCopy(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat2 <- mat1
+void BitMatrixPrint(struct BitMatrix* mat);
 
-void BitMatrixGet(struct BitMatrix* mat, int row, int col);
-void BitMatrixSet(struct BitMatrix* mat, int row, int col, int value);
+unsigned int BitMatrixGet(struct BitMatrix* mat, unsigned int row, unsigned int col);
+void BitMatrixSet(struct BitMatrix* mat, unsigned int row, unsigned int col, unsigned int value);
 
-void getBitMatrixCol(struct BitMatrix* mat, int col);
-void getBitMatrixRow(struct BitMatrix* mat, int row);
+void BitMatrixColGet(struct BitMatrix* mat, struct BitVector* vec, unsigned int col);
+void BitMatrixColSet(struct BitMatrix* mat, struct BitVector* vec, unsigned int col);
+void BitMatrixRowGet(struct BitMatrix* mat, struct BitVector* vec, unsigned int row);
+void BitMatrixRowSet(struct BitMatrix* mat, struct BitVector* vec, unsigned int row);
 
-void BitMatrixSwapCols(struct BitMatrix* mat, int col1, int col2);
-void BitMatrixSwapRows(struct BitMatrix* mat, int row1, int row2);
+void BitMatrixSwapCols(struct BitMatrix* mat, unsigned int col1, unsigned int col2);
+void BitMatrixSwapRows(struct BitMatrix* mat, unsigned int row1, unsigned int row2);
+
+void BitMatrixTranspose(struct BitMatrix* mat);
+
+struct BitMatrix* BitMatrixMulMatrix(struct BitMatrix* mat1, struct BitMatrix* mat2);
+void BitMatrixMulMatrixSet(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat2 <- mat1*mat2;
+
+struct BitVector* BitVectorMulMatrix(struct BitMatrix* mat, struct BitVector* vec);
+void BitVectorMulMatrixSet(struct BitMatrix* mat, struct BitVector* vec); // vec <- mat*vec
