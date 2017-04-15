@@ -1,21 +1,18 @@
-#include <gsl/gsl_vector.h>
-#include <gsl/gsl_matrix.h>
-#include <gsl/gsl_complex.h>
-#include <gsl/gsl_complex_math.h>
+#include "../utils/matrix.h"
 
-int mod(int a, int b);
 
 //define K from RandomStabilizerState algorithm (page 16)
 struct StabilizerState {
 	int n;
 	int k;
-	gsl_vector *h;		//in \mathbb{F}^n_2
-	gsl_matrix *G;		//in \mathbb{F}^{n\times n}_2
-	gsl_matrix *Gbar;	//= (G^-1)^T
+    struct BitVector* h;		//in \mathbb{F}^n_2
+	struct BitMatrix* G;		//in \mathbb{F}^{n\times n}_2
+	struct BitMatrix* Gbar;	//= (G^-1)^T
 
 	int Q;				//in \mathbb{Z}_8
-	gsl_vector *D;		//in {0,2,4,6}^k
-	gsl_matrix *J;		//in {0,4}^{k\times k}, symmetric
+	struct BitMatrix *D2  // in {0,2,4,6}^k
+	struct BitMatrix *D1; // D[i] = 2*D2[i] + D1[i]
+	struct BitMatrix* J; //in {0,4}^{k\times k}, symmetric
 };
 
 

@@ -1,6 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+/*************************** Complex Number *************************/
+
+struct Complex {
+    double re;
+    double im;
+};
+
+
+/*************************** Bit Vector *************************/
+
 struct BitVector {
     unsigned int size;
     unsigned char* data;
@@ -20,6 +31,9 @@ void BitVectorSet(struct BitVector* vec, unsigned int loc, unsigned int value);
 unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
 
 void BitVectorXorSet(struct BitVector* vec1, struct BitVector* vec2); // vec2 <- vec1 ^ vec2
+
+
+/*************************** Bit Matrix *************************/
 
 struct BitMatrix {
     unsigned int rows;
