@@ -1,17 +1,17 @@
-C=gcc
-CFLAGS=-lgsl -lgslcblas -lm -std=gnu99 -g -lpthread -W -Wall
-LFLAGS=-I/usr/include -L/usr/lib 
+CC=gcc
+CFLAGS=-I${TACC_GSL_INC} -I${TACC_GSL_INC}/gsl -std=gnu99 -g -W -Wall
+LDFLAGS=-L${TACC_GSL_LIB} -lgsl -lgslcblas -lm -lpthread
 
 sample: clean
-	$(C) $(LFLAGS) -c libcirc/sample.c -o sample.o $(CFLAGS)
-	$(C) $(LFLAGS) -c libcirc/stabilizer/stabilizer.c -o stabilizer.o $(CFLAGS)
-	$(C) $(LFLAGS) sample.o stabilizer.o -o libcirc/sample $(CFLAGS)
+	$(CC) $(CFLAGS) -c libcirc/sample.c -o sample.o
+	$(CC) $(CFLAGS) -c libcirc/stabilizer/stabilizer.c -o stabilizer.o
+	$(CC) $(CFLAGS) $(LDFLAGS) sample.o stabilizer.o -o libcirc/sample
 	-@rm *.o 2>/dev/null
 
 stabtests: 
-	$(C) $(LFLAGS) -c tests/stabtests.c -o stabtests.o $(CFLAGS)
-	$(C) $(LFLAGS) -c libcirc/stabilizer/stabilizer.c -o stabilizer.o $(CFLAGS)
-	$(C) $(LFLAGS) stabtests.o stabilizer.o -o stabtests $(CFLAGS)
+	$(CC) $(LDFLAGS) -c tests/stabtests.c -o stabtests.o 
+	$(CC) $(LDFLAGS) -c libcirc/stabilizer/stabilizer.c -o stabilizer.o
+	$(CC) $(LDFLAGS) stabtests.o stabilizer.o -o stabtests
 	-@rm *.o 2>/dev/null || true
 	./stabtests
 	rm stabtests
