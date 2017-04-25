@@ -4,6 +4,46 @@
 #include <assert.h>
 #include <math.h>
 
+/*************************** Complex Number *************************/
+
+/*
+typedef struct {
+    double dat[2]; 
+} Complex;
+*/
+
+Complex ComplexPolar(double r, double theta) {
+    Complex z = {r * cos(theta), r * sin(theta)};
+    return z;
+}
+
+void ComplexPrint(Complex z) {
+    printf("%f + %fi\n", z.re, z.im);
+}
+
+Complex ComplexAdd(Complex z, Complex w) {
+    Complex x = {z.re + w.re, z.im + w.im};
+    return x;
+}
+
+Complex ComplexMul(Complex z, Complex w) {
+    Complex x = {z.re*w.re - z.im*w.im, z.re*w.im + w.re*z.im};
+    return x;
+}
+
+Complex ComplexMulReal(Complex z, double r) {
+    Complex x = {z.re*r, z.im*r};
+    return x;
+}
+
+double ComplexMag(Complex z) {
+    return sqrt(ComplexMagSquare(z));
+}
+
+double ComplexMagSquare(Complex z) {
+    return z.re*z.re + z.im*z.im;
+}
+
 /*************************** Bit Vector *************************/
 
 /*
@@ -464,15 +504,20 @@ struct BitMatrix* BitMatrixMulMatrix(struct BitMatrix* mat1, struct BitMatrix* m
 }
 
 // mat2 <- mat1*mat2;
-void BitMatrixMulMatrixSet(struct BitMatrix* mat1, struct BitMatrix* mat2) {
-    assert(mat1->cols == mat2->rows); // Multiplication valid
-    assert(mat1->rows == mat1->cols); // Input square
-    assert(mat1->rows == mat2->cols); // Output same
-    
+void BitMatrixMulMatrixLeft(struct BitMatrix* mat1, struct BitMatrix* mat2) {
     struct BitMatrix* matTmp = BitMatrixMulMatrix(mat1, mat2);
     BitMatrixCopy(matTmp, mat2);
-    BitMatrixFree(mat2);
+    BitMatrixFree(matTmp);
 }
+
+
+// mat1 <- mat1*mat2;
+void BitMatrixMulMatrixRight(struct BitMatrix* mat1, struct BitMatrix* mat2) {
+    struct BitMatrix* matTmp = BitMatrixMulMatrix(mat1, mat2);
+    BitMatrixCopy(matTmp, mat1);
+    BitMatrixFree(matTmp);
+}
+
 
 struct BitVector* BitMatrixMulVector(struct BitMatrix* mat, struct BitVector* vec) {
     assert(mat->cols == vec->size);

@@ -4,11 +4,24 @@
 
 /*************************** Complex Number *************************/
 
-struct Complex {
+typedef struct {
     double re;
     double im;
-};
+} Complex;
 
+// To initialize: z = {0, 0};
+//
+#define M_PI 3.14159265358979323846
+Complex ComplexPolar(double r, double theta);
+
+void ComplexPrint(Complex z);
+
+Complex ComplexAdd(Complex z, Complex w);
+Complex ComplexMul(Complex z, Complex w);
+Complex ComplexMulReal(Complex z, double r);
+
+double ComplexMag(Complex z);
+double ComplexMagSquare(Complex z);
 
 /*************************** Bit Vector *************************/
 
@@ -27,6 +40,7 @@ void BitVectorPrint(struct BitVector* vec);
 unsigned int BitVectorGet(struct BitVector* vec, unsigned int loc);
 void BitVectorSet(struct BitVector* vec, unsigned int loc, unsigned int value);
 void BitVectorFlip(struct BitVector* vec, unsigned int loc);
+
 
 // number of positions where they coincide. Do the mod 2 yourself.
 unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
@@ -69,7 +83,8 @@ struct BitMatrix* BitMatrixTranspose(struct BitMatrix* mat);
 void BitMatrixTransposeSet(struct BitMatrix* mat);
 
 struct BitMatrix* BitMatrixMulMatrix(struct BitMatrix* mat1, struct BitMatrix* mat2);
-void BitMatrixMulMatrixSet(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat2 <- mat1*mat2;
+void BitMatrixMulMatrixLeft(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat2 <- mat1*mat2;
+void BitMatrixMulMatrixRight(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat1 <- mat1*mat2;
 
 struct BitVector* BitMatrixMulVector(struct BitMatrix* mat, struct BitVector* vec);
 void BitMatrixMulVectorSet(struct BitMatrix* mat, struct BitVector* vec); // vec <- mat*vec

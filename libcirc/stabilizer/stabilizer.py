@@ -76,16 +76,16 @@ class StabilizerState:
 
     # ---------- Common Helper Functions -----------
 
-    # helper to update D, J using equations 48, 49 on page 10
+    # helper to update D, J using equations 49, 50 on page 10
     def updateDJ(self, R):
-        # equation 48
+        # equation 49
         self.D = np.dot(R, self.D)
         for b in range(self.k):
             for c in range(b):
                 self.D += self.J[b, c]*R[:, b]*R[:, c]
         self.D = self.D % 8
 
-        # equation 49
+        # equation 50
         self.J = np.dot(np.dot(R, self.J), R.T) % 8
 
     # helper to update Q, D using equations 51, 52 on page 10

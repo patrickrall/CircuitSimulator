@@ -17,21 +17,19 @@ struct StabilizerState {
 
 
 struct StabilizerState* allocStabilizerState(int n, int k);
-
 void deepCopyState(struct StabilizerState *dest, struct StabilizerState *src);
+void freeStabilizerState(struct StabilizerState* state);
+void printStabilizerState(struct StabilizerState* state);  // prints python code for easy debugging
 
-void exponentialSum(struct StabilizerState *state, int *eps, int *p, int *m, gsl_complex *ans, int exact);
+void exponentialSumExact(struct StabilizerState* state, int* eps, int* p, int* m);
+Complex exponentialSum(struct StabilizerState* state);
 
-int shrink(struct StabilizerState *state, gsl_vector *xi, int alpha, int lazy);
+int shrink(struct StabilizerState* state, gsl_vector* xi, int alpha, int lazy);
 
-void innerProduct(struct StabilizerState *state1, struct StabilizerState *state2, int *eps, int *p, int *m, gsl_complex *ans, int exact);
+void innerProductExact(struct StabilizerState* state1, struct StabilizerState* state2, int* eps, int* p, int* m);
+Complex innerProduct(struct StabilizerState* state1, struct StabilizerState* state2);
 
 struct StabilizerState* randomStabilizerState(int n);
 
-void extend(struct StabilizerState *state, gsl_vector *xi);
-
-double measurePauli(struct StabilizerState *state, int m, gsl_vector *zeta, gsl_vector *xi);
-
-void freeStabilizerState(struct StabilizerState *state);
-
-void printStabilizerState(struct StabilizerState *state);
+double measurePauli(struct StabilizerState* state, int m, struct BitVector* zeta, struct BitVector* xi);
+void extend(struct StabilizerState* state, struct BitVector* xi);
