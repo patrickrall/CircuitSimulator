@@ -1,0 +1,68 @@
+\documentclass[11pt]{article}
+\usepackage{geometry}                
+\geometry{letterpaper}
+\usepackage[]{graphicx}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{multicol}
+\usepackage{graphics}
+
+\newcommand{\braket}[2]{\langle #1 | #2 \rangle}
+
+\input{/home/prall/.vim/tex/Qcircuit.tex}
+
+\begin{document}
+
+
+\section*{Probability calculation and the Hidden Shift Algorithm}
+
+\subsection*{Introduction}
+
+This note concerns the remark on page 7, which concerns classically controlled gates in response to measurements of qubits. The trick goes as follows: say a qubit has a 50-50 chance of being 0 or 1. Then we can postselect a measurement result $x = $ 0 or 1 with a 50-50 chance, select a circuit $V_x$ depending on the measurement output $x$, and project the measured qubit onto $\ket{x}\bra{x}$.
+
+This trick works for the sampling algorithm, but not for the probability algorithm. This can be seen with the following circuit:
+\[
+\Qcircuit @C=.7em @R=.4em @! {
+    \lstick{\ket{0}} & \gate{H} & \meter\\
+\lstick{\ket{0}} &  \qw & \gate{X} \cwx &\qw 
+}
+\]
+
+Say we desire to calculate the probability of the second qubit being zero: $P(0) = 1/2$. We postselect a value $x$ giving either $V_0 = H \otimes I$ or $V_1 = H \otimes X$, or compactly $V_x = H \otimes X^x$. Then we calculate:
+
+$$P_x(0) = \frac{ \bra{0^{\otimes 2}} V^\dagger_x (\ket{x}\bra{x} \otimes \ket{0}\bra{0}) V_x \ket{0^{\otimes 2}} }{\bra{0^{\otimes 2}} V^\dagger_x (\ket{x}\bra{x} \otimes I) V_x \ket{0^{\otimes 2}} } = \frac{2^{-1/2} |\bra{0} X^x \ket{0}|^2 }{2^{-1/2}} = 1-x$$
+
+Neither $P_1(0) = 0$ nor $P_0(0) = 1$ are the correct probability, therefore this technique does not work for calculating probabilities. However, if a random $x$ is sampled, and we then sample a result from $P_x(0)$, it will be as if we had sampled from the correct distribution.
+
+\textbf{Why does it always work for the T gate gadget, but not for other situations?}
+
+I believe this subtlety was neglected in the implementation of the Hidden Shift Algorithm (HSA) as detailed in the final appendix. In the following I will demonstrate that this is indeed an issue for HSA in particular, and that it can be resolved without compromising the algorithm's runtime.
+
+In the following I will use the shorthand:
+$$f(x, \Pi, y, V_x) = (\bra{0^{\otimes n}} \otimes \bra{A^{\otimes t}}) V^\dagger_x ( \ket{x}\bra{x} \otimes \Pi \otimes \ket{y}\bra{y}) V_x (\ket{0^{\otimes n}} \otimes \ket{A^{\otimes t}}) $$
+
+Here $\Pi$ is a projector into the qubit(s) whose output probability is being measured. $x$ is a postselection measurements appearing in the circuit, for example in the Toffoli gate gadget. $y$ is a postselection on measurements in the $T$-gate gadget only. The paper's discussion lumps $x,y$ into a single variable $y$, but here it is handy to keep them separate. $V_x$ is a gadgetized circuit, where the gadgetization depends on both $x$ and $y$ (keeping the $y$ dependence implicit).
+
+\textbf{Proposition 1.} There exists an HSA $V_x$ and postselections $x$ and $y$ such that:
+$$P(q=0) \neq \frac{f(x, \ket{0}\bra{0}_q, y, V_x)}{f(x, I_q, y, V_x)}$$
+In other words, the procedure detailed in appendix F can fail to calculate the correct probability.
+
+\textit{Proof} ...
+
+
+\textbf{Proposition 2.} For any algorithm $V_x$, any postselections $x$ and $y$, and potentially several output qubits $q$ and output string $\tilde q$:
+$$P(q=\tilde q) = \frac{\left\langle  f(x, \ket{\tilde q}\bra{\tilde q}_q, y, V_x) \right\rangle_x}{\Big\langle  f(x, I_q, y, V_x) \Big\rangle_x} = \frac{ \sum_x  f(x, \ket{\tilde q}\bra{\tilde q}_q, y, V_x) }{\sum_{x}  f(x, I_q, y, V_x) }$$
+In other words, if we average over all postselections $x$ in the numerator and denominator, the result is always correct.
+
+\textit{Proof} ...
+
+\textbf{Proposition 3.} For any algorithm $V_x$, $T$-gate postselection $y$ and output projector $\Pi$, let $\Big\langle  f(x, \Pi, y, V_x) \Big\rangle_x = \mu$. Then the random variable $\alpha = f(\xi, \Pi, y, V_\xi)$, where $\xi$ is a uniformly random distribution of bit strings, obeys $\langle\alpha\rangle = \mu$ and:
+$$P( (\alpha - \mu)^2 < \epsilon ) \leq n/(4\epsilon) $$.
+In other words, I can efficiently approximate the average value of $f$ via a polynomial-size random subset of postselections $x$.
+
+\textit{Proof} ...
+
+\end{document}

@@ -26,6 +26,7 @@ void BitVectorPrint(struct BitVector* vec);
 
 unsigned int BitVectorGet(struct BitVector* vec, unsigned int loc);
 void BitVectorSet(struct BitVector* vec, unsigned int loc, unsigned int value);
+void BitVectorFlip(struct BitVector* vec, unsigned int loc);
 
 // number of positions where they coincide. Do the mod 2 yourself.
 unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
@@ -47,11 +48,13 @@ struct BitMatrix* newBitMatrixRandom(unsigned int rows, unsigned int cols);  // 
 
 void BitMatrixFree(struct BitMatrix* mat);
 void BitMatrixSetZero(struct BitMatrix* mat);
+void BitMatrixSetIdentity(struct BitMatrix* mat);
 void BitMatrixCopy(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat2 <- mat1
 void BitMatrixPrint(struct BitMatrix* mat);
 
 unsigned int BitMatrixGet(struct BitMatrix* mat, unsigned int row, unsigned int col);
 void BitMatrixSet(struct BitMatrix* mat, unsigned int row, unsigned int col, unsigned int value);
+void BitMatrixFlip(struct BitMatrix* mat, unsigned int row, unsigned int col);
 
 void BitMatrixSetCol(struct BitMatrix* mat, struct BitVector* vec, unsigned int col);
 void BitMatrixSetRow(struct BitMatrix* mat, struct BitVector* vec, unsigned int row);
