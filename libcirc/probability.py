@@ -174,7 +174,6 @@ def probability(circ, measure, config):
         indat += writeProjector(Gprime)
         indat += writeProjector(Hprime)
 
-        indat += send(Nsamples)  # Nsamples
         if config["parallel"]:
             indat += send(int(cpu_count()))
         else:
@@ -197,7 +196,7 @@ def probability(circ, measure, config):
                 sys.stdout.write(line + "\r")
             else:
                 out.append(line)
-        sys.stdout.write("\033[K")
+        sys.stdout.write("\033[K")  #This code is messing up the terminal, apparently not universally honored - Antia
 
         success = True
         try:
