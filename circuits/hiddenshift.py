@@ -5,7 +5,7 @@
 #
 
 import os
-import sys
+import sys, argparse
 sys.path.append(os.path.abspath('.'))
 
 from libcirc.probability import probability  # import issues? see comment in file!
@@ -17,17 +17,30 @@ import numpy as np
 from datetime import datetime
 
 # ######## CONFIG ######## #
-n = 40  # length of shift string
-toff = 1  # number of toffoli's per O_f
-randcliff = 200  # number of random Cliffords in between CCZ's
+parser = argparse.ArgumentParser()
+parser.add_argument("-n", "--n_qubits",type=int, default=40, help="Number of qubits to be used")
+parser.add_argument("-t", "--n_toffoli",type=int, default=1, help="Number of toffolis per 0_f to be used")
+parser.add_argument("-c", "--n_clifford",type=int, default=200, help="Number of random Cliffords in between CCZs")
+parser.add_argument("-s", "--n_samples", type=int, default=100, help="Number of samples")
+parser.add_argument("-k", type=int, default=11, help="k value")
+
+#parser.parse_args()
+args = parser.parse_args()
+
+n = args.n_qubits # length of shift string
+toff = args.n_toffoli  # number of toffoli's per O_f
+randcliff = args.n_clifford  # number of random Cliffords in between CCZ's
 
 # probability algorithm precision parameters
-samples = 100
-k = 11
+samples = args.n_samples
+k = args.k
+
+
+
 
 # output config
 printCirc = False
-plot = True
+plot = False
 
 # random seed
 np.random.seed(0)
