@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # file: hiddenshift.py
 # Tests the probability routine using the hidden shift algorithm,
@@ -35,7 +36,10 @@ randcliff = args.n_clifford  # number of random Cliffords in between CCZ's
 samples = args.n_samples
 k = args.k
 
+#iparser.parse_args()
 
+# Checking parameters are correct
+print n
 
 
 # output config
