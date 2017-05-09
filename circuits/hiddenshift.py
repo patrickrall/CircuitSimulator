@@ -9,6 +9,8 @@ import os
 import sys, argparse
 sys.path.append(os.path.abspath('.'))
 
+print os.path.abspath('.')
+
 from libcirc.probability import probability  # import issues? see comment in file!
 from libcirc.compilecirc import compileCircuit
 # import issues? Try executing from root directory: python circuits/hiddenshift.py
@@ -19,13 +21,12 @@ from datetime import datetime
 
 # ######## CONFIG ######## #
 parser = argparse.ArgumentParser()
-parser.add_argument("-n", "--n_qubits",type=int, default=40, help="Number of qubits to be used")
-parser.add_argument("-t", "--n_toffoli",type=int, default=1, help="Number of toffolis per 0_f to be used")
-parser.add_argument("-c", "--n_clifford",type=int, default=200, help="Number of random Cliffords in between CCZs")
-parser.add_argument("-s", "--n_samples", type=int, default=100, help="Number of samples")
-parser.add_argument("-k", type=int, default=11, help="k value")
+parser.add_argument("-n", "--n_qubits",type=int, default=40, help="Number of qubits [40]")
+parser.add_argument("-t", "--n_toffoli",type=int, default=1, help="Number of toffolis per 0_f [1]")
+parser.add_argument("-c", "--n_clifford",type=int, default=200, help="Number of random Cliffords in between CCZs [200]")
+parser.add_argument("-s", "--n_samples", type=int, default=100, help="Number of samples [100]")
+parser.add_argument("-k", type=int, default=11, help="k value [11]")
 
-#parser.parse_args()
 args = parser.parse_args()
 
 n = args.n_qubits # length of shift string
@@ -35,12 +36,6 @@ randcliff = args.n_clifford  # number of random Cliffords in between CCZ's
 # probability algorithm precision parameters
 samples = args.n_samples
 k = args.k
-
-#iparser.parse_args()
-
-# Checking parameters are correct
-print n
-
 
 # output config
 printCirc = False
