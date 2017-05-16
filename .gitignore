@@ -7,3 +7,5 @@ tests/exampleFunctionCalls/Shrink.txt
 */__pycache__
 */*.pyc
 *.pyc
+*/libcirc/stabilizer/*.pyc
+*/libcirc/sample
