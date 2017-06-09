@@ -2,13 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <gsl/gsl_matrix.h>
-#include <gsl/gsl_blas.h>
-#include <gsl/gsl_math.h>
-#include <gsl/gsl_complex.h>
-#include <gsl/gsl_complex_math.h>
-#include <gsl/gsl_linalg.h>
 #include "../../libcirc/stabilizer/stabilizer.h"
+// #include "../../libcirc/utils/matrix.h"
 
 int readInt(FILE *fr, char *line, const int maxLineLength, int *target){
 	if(!fgets(line, maxLineLength, fr)){
@@ -40,26 +35,6 @@ int readArray(FILE *fr, char *line, const int maxLineLength, double *target){
 	return 1;
 }
 
-int isVectorWorking(gsl_vector *a, gsl_vector *b, int length){
-	for(int i=0;i<length;i++){
-		if(gsl_vector_get(a, i) - gsl_vector_get(b, i) > 0.0001){
-			return 0;
-		}
-	}
-	return 1;
-}
-
-int isMatrixWorking(gsl_matrix *a, gsl_matrix *b, int length){
-	for(int i=0;i<length;i++){
-		for(int j=0;j<length;j++){
-			if(gsl_matrix_get(a, i, j) - gsl_matrix_get(b, i, j) > 0.0001){
-				return 0;
-			}
-		}
-	}
-	return 1;
-}
-
 void testFileExponentialSum(){
 	printf("\nTest file exponentialSum:\n");
 	
@@ -73,77 +48,51 @@ void testFileExponentialSum(){
     time(&start_t);
     
 	fr = fopen("tests-c/exponentialSumTests.txt", "rt");
+
 	while(1){
-		struct StabilizerState state;
+        int n, k;
 		int eps, outEps, p, outP, m, outM;
-		gsl_complex ans;
 		
-		//read n
-		if(!readInt(fr, line, maxLineLength, &state.n)){
-			break;
-		}
-		
-		double vectorData[state.n];
-		double matrixData[state.n*state.n];
-		gsl_vector_view vectorView;
-		gsl_matrix_view matrixView;
-		
-		//read k
-		if(!readInt(fr, line, maxLineLength, &state.k)){
-			break;
-		}
-		
-		//read Q
-		if(!readInt(fr, line, maxLineLength, &state.Q)){
-			break;
-		}
+		if(!readInt(fr, line, maxLineLength, &n)) break; //read n
+		if(!readInt(fr, line, maxLineLength, &k)) break; //read k
+
+		double vectorData[n];
+		double matrixData[n*n];
+
+	    struct StabilizerState* state = allocStabilizerState(n, k); 
+
+		if(!readInt(fr, line, maxLineLength, &(state->Q))) break; //read Q
 		
 		//read D
-		if(!readArray(fr, line, maxLineLength, vectorData)){
-			break;
-		}
-		vectorView = gsl_vector_view_array(vectorData, state.n);
-		state.D = &vectorView.vector;
-		
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state->n; i++) setD(state, i, vectorData[i]);
+
 		//read J
-		if(!readArray(fr, line, maxLineLength, matrixData)){
-			break;
-		}
-		matrixView = gsl_matrix_view_array(matrixData, state.n, state.n);
-		state.J = &matrixView.matrix;
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->J, i, j, 1);
+            }
+        }
 		
-		//read outEps
-		if(!readInt(fr, line, maxLineLength, &outEps)){
-			break;
-		}
-		
-		//read outP
-		if(!readInt(fr, line, maxLineLength, &outP)){
-			break;
-		}
-		
-		//read outM
-		if(!readInt(fr, line, maxLineLength, &outM)){
-			break;
-		}
-		
-		exponentialSum(&state, &eps, &p, &m, &ans, 1);
-		
+		if(!readInt(fr, line, maxLineLength, &outEps)) break; //read outEps
+		if(!readInt(fr, line, maxLineLength, &outP)) break; //read outP
+		if(!readInt(fr, line, maxLineLength, &outM)) break;	//read outM
+
+		exponentialSumExact(state, &eps, &p, &m);
+	
 		int isEpsWorking = eps == outEps ? 1 : 0;
 		int isPWorking = p == outP ? 1 : 0;
-		int isMWorking = mod(m, 8) == mod(outM, 8) ? 1 : 0;
+		int isMWorking = (m % 8) == (outM % 8) ? 1 : 0;
 		
 		totalTests++;
-		if(isEpsWorking*isPWorking*isMWorking > 0){
-			successTests++;
-		}
-		else{
-			printf("Test number %d failed.\n", totalTests);
-		}
+		if(isEpsWorking*isPWorking*isMWorking > 0) successTests++;
+		else printf("Test number %d failed.\n", totalTests);
+
+        freeStabilizerState(state);
 	}
 	
 	fclose(fr);
-	
 	printf("%d out of %d tests successful.\n", successTests, totalTests);
     
     time(&end_t);
@@ -168,150 +117,118 @@ void testFileShrink(){
 	fr = fopen("tests-c/shrinkTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerState state;
+        int n, k;
 		int alpha, outk, outQ, outStatus;
-		gsl_vector *xi, *outh, *outD;
-		gsl_matrix *outG, *outGbar, *outJ;
 		
-		//read n
-		if(!readInt(fr, line, maxLineLength, &state.n)){
-			break;
-		}
+		if(!readInt(fr, line, maxLineLength, &n)) break; //read n
+		if(!readInt(fr, line, maxLineLength, &k)) break; //read k
+
+	    struct StabilizerState* state = allocStabilizerState(n, k); 
+
+		if(!readInt(fr, line, maxLineLength, &state->Q)) break; //read Q
+		if(!readInt(fr, line, maxLineLength, &alpha)) break; //read alpha
 		
-		//read k
-		if(!readInt(fr, line, maxLineLength, &state.k)){
-			break;
-		}
-		
-		//read Q
-		if(!readInt(fr, line, maxLineLength, &state.Q)){
-			break;
-		}
-		
-		//read alpha
-		if(!readInt(fr, line, maxLineLength, &alpha)){
-			break;
-		}
-		
+		double vectorData[n];
+		double matrixData[n*n];
+
 		//read h
-		double vectorDatah[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDatah)){
-			break;
-		}
-		gsl_vector_view vectorViewh = gsl_vector_view_array(vectorDatah, state.n);
-		state.h = &vectorViewh.vector;
-		//printf("\nh: ");for(int i=0;i<state.n;i++){printf("%.0f ", gsl_vector_get(state.h, i));}
-		
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state->n; i++) BitVectorSet(state->h, i, vectorData[i]);
+       
 		//read D
-		double vectorDataD[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataD)){
-			break;
-		}
-		gsl_vector_view vectorViewD = gsl_vector_view_array(vectorDataD, state.n);
-		state.D = &vectorViewD.vector;
-		//printf("\nD: ");for(int i=0;i<state.n;i++){printf("%.0f ", gsl_vector_get(state.D, i));}
-		
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state->n; i++) setD(state, i, vectorData[i]);
+
 		//read xi
-		double vectorDataxi[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataxi)){
-			break;
-		}
-		gsl_vector_view vectorViewxi = gsl_vector_view_array(vectorDataxi, state.n);
-		xi = &vectorViewxi.vector;
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        struct BitVector *xi = newBitVector(n);
+        for (int i = 0; i < state->n; i++) BitVectorSet(xi, i, vectorData[i]);
 		
 		//read G
-		double matrixDataG[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataG)){
-			break;
-		}
-		gsl_matrix_view matrixViewG = gsl_matrix_view_array(matrixDataG, state.n, state.n);
-		state.G = &matrixViewG.matrix;
-		
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state->G);
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->G, i, j, 1);
+            }
+        }
+
 		//read Gbar
-		double matrixDataGbar[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataGbar)){
-			break;
-		}
-		gsl_matrix_view matrixViewGbar = gsl_matrix_view_array(matrixDataGbar, state.n, state.n);
-		state.Gbar = &matrixViewGbar.matrix;
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state->Gbar);
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->Gbar, i, j, 1);
+            }
+        }
 		
 		//read J
-		double matrixDataJ[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataJ)){
-			break;
-		}
-		gsl_matrix_view matrixViewJ = gsl_matrix_view_array(matrixDataJ, state.n, state.n);
-		state.J = &matrixViewJ.matrix;
-		
-		//read outStatus
-		if(!readInt(fr, line, maxLineLength, &outStatus)){
-			break;
-		}
-		
-		//read outk
-		if(!readInt(fr, line, maxLineLength, &outk)){
-			break;
-		}
-		
-		//read outQ
-		if(!readInt(fr, line, maxLineLength, &outQ)){
-			break;
-		}
+        if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->J, i, j, 1);
+            }
+        }
+
+		if(!readInt(fr, line, maxLineLength, &outStatus)) break; //read outStatus
+		if(!readInt(fr, line, maxLineLength, &outk)) break; //read outk
+		if(!readInt(fr, line, maxLineLength, &outQ)) break; //read outQ
 		
 		//read outh
-		double vectorDataouth[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataouth)){
-			break;
-		}
-		gsl_vector_view vectorViewouth = gsl_vector_view_array(vectorDataouth, state.n);
-		outh = &vectorViewouth.vector;
-		
+        if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        struct BitVector *outh = newBitVector(n);
+        for (int i = 0; i < state->n; i++) BitVectorSet(outh, i, vectorData[i]);
+
 		//read outD
-		double vectorDataoutD[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataoutD)){
-			break;
-		}
-		gsl_vector_view vectorViewoutD = gsl_vector_view_array(vectorDataoutD, state.n);
-		outD = &vectorViewoutD.vector;
-		//printf("\noutD: ");for(int i=0;i<state.n;i++){printf("%.0f ", gsl_vector_get(outD, i));}
+		double outD[state->n];
+		if(!readArray(fr, line, maxLineLength, outD)) break;
 		
 		//read outG
-		double matrixDataoutG[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutG)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutG = gsl_matrix_view_array(matrixDataoutG, state.n, state.n);
-		outG = &matrixViewoutG.matrix;
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        struct BitMatrix* outG = newBitMatrixZero(n,n);
+        for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(outG, i, j, 1);
+            }
+        }
 		
 		//read outGbar
-		double matrixDataoutGbar[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutGbar)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutGbar = gsl_matrix_view_array(matrixDataoutGbar, state.n, state.n);
-		outGbar = &matrixViewoutGbar.matrix;
-		
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        struct BitMatrix* outGbar = newBitMatrixZero(n,n);
+        for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(outGbar, i, j, 1);
+            }
+        }
+	
 		//read outJ
-		double matrixDataoutJ[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutJ)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutJ = gsl_matrix_view_array(matrixDataoutJ, state.n, state.n);
-		outJ = &matrixViewoutJ.matrix;
-		
-		int status = shrink(&state, xi, alpha, 0);
-		
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        struct BitMatrix* outJ = newBitMatrixZero(n,n);
+        for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(outJ, i, j, 1);
+            }
+        }
+
+        int status = shrink(state, xi, alpha, 0);
+
 		int isStatusWorking = status == outStatus ? 1 : 0;
-		int iskWorking = state.k == outk ? 1 : 0;
-		int isQWorking = state.Q == outQ ? 1 : 0;
-		int ishWorking = isVectorWorking(state.h, outh, state.k);
-		int isDWorking = isVectorWorking(state.D, outD, state.k);
-		int isGWorking = isMatrixWorking(state.G, outG, state.k);
-		int isGbarWorking = isMatrixWorking(state.Gbar, outGbar, state.k);
-		int isJWorking = isMatrixWorking(state.J, outJ, state.k);
-		
-		//printf("%d %d %d %d %d %d %d %d ", isStatusWorking, iskWorking, isQWorking, ishWorking, isDWorking, isGWorking, isGbarWorking, isJWorking);
-		
+		int iskWorking = state->k == outk ? 1 : 0;
+		int isQWorking = state->Q == outQ ? 1 : 0;
+		int ishWorking = BitVectorSame(state->h, outh);
+
+		int isDWorking = 1;
+        for (int i = 0; i < state->k; i++) {
+            if (getD(state, i) != (int)outD[i]) {
+                isDWorking = 0;
+                break;
+            }
+        }
+
+		int isGWorking = BitMatrixSame(state->G, outG);
+		int isGbarWorking = BitMatrixSame(state->Gbar, outGbar);
+		int isJWorking = BitMatrixSame(state->J, outJ);
+      
 		totalTests++;
 		if(isStatusWorking*iskWorking*isQWorking*ishWorking*isDWorking*isGWorking*isGbarWorking*isJWorking > 0){
 			successTests++;
@@ -319,7 +236,13 @@ void testFileShrink(){
 		else{
 			printf("Test number %d failed.\n", totalTests);
 		}
-	}
+	
+        freeStabilizerState(state);
+        BitVectorFree(outh);
+        BitMatrixFree(outG);
+        BitMatrixFree(outGbar);
+        BitMatrixFree(outJ);
+    }
 	
 	fclose(fr);
 	
@@ -330,6 +253,7 @@ void testFileShrink(){
 
 	printf("----------------------\n");
 }
+
 
 void testFileInnerProduct(){
 	printf("\nTest file inner product:\n");
@@ -346,159 +270,119 @@ void testFileInnerProduct(){
 	fr = fopen("tests-c/innerProductTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerState state1;
-		struct StabilizerState state2;
 		int eps, outEps, p, outP, m, outM;
-		gsl_complex ans;
+        int n, k;
 		
 		//populate state1: 
+		if(!readInt(fr, line, maxLineLength, &n)) break; //read n
+		if(!readInt(fr, line, maxLineLength, &k)) break; //read k
+
+	    struct StabilizerState* state1 = allocStabilizerState(n, k); 
 		
-		//read n
-		if(!readInt(fr, line, maxLineLength, &state1.n)){
-			break;
-		}
-		
-		//read k
-		if(!readInt(fr, line, maxLineLength, &state1.k)){
-			break;
-		}
-		
-		//read Q
-		if(!readInt(fr, line, maxLineLength, &state1.Q)){
-			break;
-		}
-		
+		if(!readInt(fr, line, maxLineLength, &(state1->Q))) break; //read Q
+	
+		double vectorData[n];
+		double matrixData[n*n];
+
 		//read h
-		double vectorDatah1[state1.n];
-		if(!readArray(fr, line, maxLineLength, vectorDatah1)){
-			break;
-		}
-		gsl_vector_view vectorViewh1 = gsl_vector_view_array(vectorDatah1, state1.n);
-		state1.h = &vectorViewh1.vector;
-		
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state1->n; i++) BitVectorSet(state1->h, i, vectorData[i]);
+       
 		//read D
-		double vectorDataD1[state1.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataD1)){
-			break;
-		}
-		gsl_vector_view vectorViewD1 = gsl_vector_view_array(vectorDataD1, state1.n);
-		state1.D = &vectorViewD1.vector;
-		
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state1->n; i++) setD(state1, i, vectorData[i]);
+
 		//read G
-		double matrixDataG1[state1.n*state1.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataG1)){
-			break;
-		}
-		gsl_matrix_view matrixViewG1 = gsl_matrix_view_array(matrixDataG1, state1.n, state1.n);
-		state1.G = &matrixViewG1.matrix;
-		
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state1->G);
+	    for (int i = 0; i < state1->n; i++) {
+            for (int j = 0; j < state1->n; j++) {
+                if (matrixData[i*state1->n + j] > 0) BitMatrixSet(state1->G, i, j, 1);
+            }
+        }
+
 		//read Gbar
-		double matrixDataGbar1[state1.n*state1.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataGbar1)){
-			break;
-		}
-		gsl_matrix_view matrixViewGbar1 = gsl_matrix_view_array(matrixDataGbar1, state1.n, state1.n);
-		state1.Gbar = &matrixViewGbar1.matrix;
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state1->Gbar);
+	    for (int i = 0; i < state1->n; i++) {
+            for (int j = 0; j < state1->n; j++) {
+                if (matrixData[i*state1->n + j] > 0) BitMatrixSet(state1->Gbar, i, j, 1);
+            }
+        }
 		
 		//read J
-		double matrixDataJ1[state1.n*state1.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataJ1)){
-			break;
-		}
-		gsl_matrix_view matrixViewJ1 = gsl_matrix_view_array(matrixDataJ1, state1.n, state1.n);
-		state1.J = &matrixViewJ1.matrix;
-		
+        if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state1->n; i++) {
+            for (int j = 0; j < state1->n; j++) {
+                if (matrixData[i*state1->n + j] > 0) BitMatrixSet(state1->J, i, j, 1);
+            }
+        }
+
 		//populate state2: 
+        if(!readInt(fr, line, maxLineLength, &n)) break; //read n
+		if(!readInt(fr, line, maxLineLength, &k)) break; //read k
 		
-		//read n
-		if(!readInt(fr, line, maxLineLength, &state2.n)){
-			break;
-		}
+	    struct StabilizerState* state2 = allocStabilizerState(n, k); 
 		
-		//read k
-		if(!readInt(fr, line, maxLineLength, &state2.k)){
-			break;
-		}
-		
-		//read Q
-		if(!readInt(fr, line, maxLineLength, &state2.Q)){
-			break;
-		}
-		
+		if(!readInt(fr, line, maxLineLength, &(state2->Q))) break; //read Q
+    
+        if (n != state1->n) printf("STATES OF DIFFERENT SIZE\n");
+
 		//read h
-		double vectorDatah2[state2.n];
-		if(!readArray(fr, line, maxLineLength, vectorDatah2)){
-			break;
-		}
-		gsl_vector_view vectorViewh2 = gsl_vector_view_array(vectorDatah2, state2.n);
-		state2.h = &vectorViewh2.vector;
-		
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state2->n; i++) BitVectorSet(state2->h, i, vectorData[i]);
+       
 		//read D
-		double vectorDataD2[state2.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataD2)){
-			break;
-		}
-		gsl_vector_view vectorViewD2 = gsl_vector_view_array(vectorDataD2, state2.n);
-		state2.D = &vectorViewD2.vector;
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state2->n; i++) setD(state2, i, vectorData[i]);
 		
 		//read G
-		double matrixDataG2[state2.n*state2.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataG2)){
-			break;
-		}
-		gsl_matrix_view matrixViewG2 = gsl_matrix_view_array(matrixDataG2, state2.n, state2.n);
-		state2.G = &matrixViewG2.matrix;
-		
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state2->G);
+	    for (int i = 0; i < state2->n; i++) {
+            for (int j = 0; j < state2->n; j++) {
+                if (matrixData[i*state2->n + j] > 0) BitMatrixSet(state2->G, i, j, 1);
+            }
+        }
+
 		//read Gbar
-		double matrixDataGbar2[state2.n*state2.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataGbar2)){
-			break;
-		}
-		gsl_matrix_view matrixViewGbar2 = gsl_matrix_view_array(matrixDataGbar2, state2.n, state2.n);
-		state2.Gbar = &matrixViewGbar2.matrix;
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state2->Gbar);
+	    for (int i = 0; i < state2->n; i++) {
+            for (int j = 0; j < state2->n; j++) {
+                if (matrixData[i*state2->n + j] > 0) BitMatrixSet(state2->Gbar, i, j, 1);
+            }
+        }
 		
 		//read J
-		double matrixDataJ2[state2.n*state2.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataJ2)){
-			break;
-		}
-		gsl_matrix_view matrixViewJ2 = gsl_matrix_view_array(matrixDataJ2, state2.n, state2.n);
-		state2.J = &matrixViewJ2.matrix;
-		
-		//read outEps
-		if(!readInt(fr, line, maxLineLength, &outEps)){
-			break;
-		}
-		
-		//read outP
-		if(!readInt(fr, line, maxLineLength, &outP)){
-			break;
-		}
-		
-		//read outM
-		if(!readInt(fr, line, maxLineLength, &outM)){
-			break;
-		}
-		
-		innerProduct(&state1, &state2, &eps, &p, &m, &ans, 1);
+        if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state2->n; i++) {
+            for (int j = 0; j < state2->n; j++) {
+                if (matrixData[i*state2->n + j] > 0) BitMatrixSet(state2->J, i, j, 1);
+            }
+        }
+
+		if(!readInt(fr, line, maxLineLength, &outEps)) break; //read outEps
+		if(!readInt(fr, line, maxLineLength, &outP)) break; //read outP
+		if(!readInt(fr, line, maxLineLength, &outM)) break; //read outM
+	
+		innerProductExact(state1, state2, &eps, &p, &m);
 		
 		int isEpsWorking = eps == outEps ? 1 : 0;
 		int isPWorking = p == outP ? 1 : 0;
-		int isMWorking = mod(m, 8) == mod(outM, 8) ? 1 : 0;
+		int isMWorking = m % 8 == outM % 8 ? 1 : 0;
 		
 		totalTests++;
 		if((eps==0&&isEpsWorking) || isEpsWorking*isPWorking*isMWorking > 0){
 			successTests++;
 		}
 		else{
-			printf("eps: %d, outEps: %d, p: %d, outP: %d, m: %d, outM: %d", eps, outEps, p, outP, m, outM);
+			printf("(%d, %d, %d) should be (%d, %d, %d)\n", eps, p, m, outEps, outP, outM);
 			printf("Test number %d failed.\n", totalTests);
 		}
 
-        /*
-        if (totalTests == 100) {
-            break;
-        }*/
+        freeStabilizerState(state1);
+        freeStabilizerState(state2);
 	}
 	
 	fclose(fr);
@@ -512,108 +396,6 @@ void testFileInnerProduct(){
 	printf("----------------------\n");
 }
 
-void testFileExtend(){
-	printf("\nTest file extend:\n");
-	
-	FILE *fr;
-	const int maxLineLength = 20000;
-	char line[maxLineLength];
-	int totalTests = 0, successTests = 0;
-
-    time_t start_t, end_t;
-    double diff_t;
-    time(&start_t);
-
-	fr = fopen("tests-c/extendTests.txt", "rt");
-	
-	while(1){
-		struct StabilizerState state;
-		int outk;
-		gsl_vector *xi;
-		gsl_matrix *outG, *outGbar;
-		
-		//read n
-		if(!readInt(fr, line, maxLineLength, &state.n)){
-			break;
-		}
-		
-		//read k
-		if(!readInt(fr, line, maxLineLength, &state.k)){
-			break;
-		}
-		
-		//read xi
-		double vectorDataxi[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataxi)){
-			break;
-		}
-		gsl_vector_view vectorViewxi = gsl_vector_view_array(vectorDataxi, state.n);
-		xi = &vectorViewxi.vector;
-		
-		//read G
-		double matrixDataG[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataG)){
-			break;
-		}
-		gsl_matrix_view matrixViewG = gsl_matrix_view_array(matrixDataG, state.n, state.n);
-		state.G = &matrixViewG.matrix;
-		
-		//read Gbar
-		double matrixDataGbar[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataGbar)){
-			break;
-		}
-		gsl_matrix_view matrixViewGbar = gsl_matrix_view_array(matrixDataGbar, state.n, state.n);
-		state.Gbar = &matrixViewGbar.matrix;
-		
-		//read outk
-		if(!readInt(fr, line, maxLineLength, &outk)){
-			break;
-		}
-		
-		//read outG
-		double matrixDataoutG[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutG)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutG = gsl_matrix_view_array(matrixDataoutG, state.n, state.n);
-		outG = &matrixViewoutG.matrix;
-		
-		//read outGbar
-		double matrixDataoutGbar[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutGbar)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutGbar = gsl_matrix_view_array(matrixDataoutGbar, state.n, state.n);
-		outGbar = &matrixViewoutGbar.matrix;
-		
-		extend(&state, xi);
-		
-		int iskWorking = state.k == outk ? 1 : 0;
-		int isGWorking = isMatrixWorking(state.G, outG, state.k);
-		int isGbarWorking = isMatrixWorking(state.Gbar, outGbar, state.k);
-		
-		//printf("%d %d %d %d %d %d %d %d ", isStatusWorking, iskWorking, isQWorking, ishWorking, isDWorking, isGWorking, isGbarWorking, isJWorking);
-		
-		totalTests++;
-		if(iskWorking*isGWorking*isGbarWorking > 0){
-			successTests++;
-		}
-		else{
-			printf("Test number %d failed.\n", totalTests);
-		}
-	}
-	
-	fclose(fr);
-	
-	printf("%d out of %d tests successful.\n", successTests, totalTests);
-
-    time(&end_t);
-    diff_t = difftime(end_t, start_t);
-    printf("Time elapsed: %f s\n", diff_t);
-
-	printf("----------------------\n");
-}
 
 void testFileMeasurePauli(){
 	printf("\nTest file measurePauli:\n");
@@ -630,155 +412,143 @@ void testFileMeasurePauli(){
 	fr = fopen("tests-c/measurePauliTests.txt", "rt");
 	
 	while(1){
-		struct StabilizerState state;
+        int n, k;
 		int m, outk, outQ;
 		double outResult;
-		gsl_vector *zeta, *xi, *outh, *outD;
-		gsl_matrix *outG, *outGbar, *outJ;
+	
+        if(!readInt(fr, line, maxLineLength, &n)) break; //read n
+		if(!readInt(fr, line, maxLineLength, &k)) break; //read k
+
+	    struct StabilizerState* state = allocStabilizerState(n, k); 
+
+        if(!readInt(fr, line, maxLineLength, &(state->Q))) break; //read Q
+		if(!readInt(fr, line, maxLineLength, &m)) break; //read m
 		
-		//read n
-		if(!readInt(fr, line, maxLineLength, &state.n)){
-			break;
-		}
-		
-		//read k
-		if(!readInt(fr, line, maxLineLength, &state.k)){
-			break;
-		}
-		
-		//read Q
-		if(!readInt(fr, line, maxLineLength, &state.Q)){
-			break;
-		}
-		
-		//read m
-		if(!readInt(fr, line, maxLineLength, &m)){
-			break;
-		}
-		
+		double vectorData[n];
+		double matrixData[n*n];
+
 		//read h
-		double vectorDatah[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDatah)){
-			break;
-		}
-		gsl_vector_view vectorViewh = gsl_vector_view_array(vectorDatah, state.n);
-		state.h = &vectorViewh.vector;
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state->n; i++) BitVectorSet(state->h, i, vectorData[i]);
+
+        //read D
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < state->n; i++) setD(state, i, vectorData[i]);
+
+        // read zeta
+        struct BitVector* zeta = newBitVector(n);
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < n; i++) BitVectorSet(zeta, i, vectorData[i]);
+
+        // read xi
+        struct BitVector* xi = newBitVector(n);
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < n; i++) BitVectorSet(xi, i, vectorData[i]);
+	
+		// read G
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state->G);
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->G, i, j, 1);
+            }
+        }
+
+		// read Gbar
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+        BitMatrixSetZero(state->Gbar);
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->Gbar, i, j, 1);
+            }
+        }
 		
-		//read D
-		double vectorDataD[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataD)){
-			break;
-		}
-		gsl_vector_view vectorViewD = gsl_vector_view_array(vectorDataD, state.n);
-		state.D = &vectorViewD.vector;
+		// read J
+        if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(state->J, i, j, 1);
+            }
+        }
+
+		if(!readDouble(fr, line, maxLineLength, &outResult)) break; //read outResult
 		
-		//read zeta
-		double vectorDatazeta[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDatazeta)){
-			break;
-		}
-		gsl_vector_view vectorViewzeta = gsl_vector_view_array(vectorDatazeta, state.n);
-		zeta = &vectorViewzeta.vector;
+		if(!readInt(fr, line, maxLineLength, &outk)) break; //read outk
 		
-		//read xi
-		double vectorDataxi[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataxi)){
-			break;
-		}
-		gsl_vector_view vectorViewxi = gsl_vector_view_array(vectorDataxi, state.n);
-		xi = &vectorViewxi.vector;
-		
-		//read G
-		double matrixDataG[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataG)){
-			break;
-		}
-		gsl_matrix_view matrixViewG = gsl_matrix_view_array(matrixDataG, state.n, state.n);
-		state.G = &matrixViewG.matrix;
-		
-		//read Gbar
-		double matrixDataGbar[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataGbar)){
-			break;
-		}
-		gsl_matrix_view matrixViewGbar = gsl_matrix_view_array(matrixDataGbar, state.n, state.n);
-		state.Gbar = &matrixViewGbar.matrix;
-		
-		//read J
-		double matrixDataJ[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataJ)){
-			break;
-		}
-		gsl_matrix_view matrixViewJ = gsl_matrix_view_array(matrixDataJ, state.n, state.n);
-		state.J = &matrixViewJ.matrix;
-		
-		//read outResult
-		if(!readDouble(fr, line, maxLineLength, &outResult)){
-			break;
-		}
-		
-		//read outk
-		if(!readInt(fr, line, maxLineLength, &outk)){
-			break;
-		}
-		
-		//read outQ
-		if(!readInt(fr, line, maxLineLength, &outQ)){
-			break;
-		}
-		
-		//read outh
-		double vectorDataouth[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataouth)){
-			break;
-		}
-		gsl_vector_view vectorViewouth = gsl_vector_view_array(vectorDataouth, state.n);
-		outh = &vectorViewouth.vector;
-		
+		if(!readInt(fr, line, maxLineLength, &outQ)) break; //read outQ
+	
+        // read xi
+        struct BitVector* outh = newBitVector(n);
+		if(!readArray(fr, line, maxLineLength, vectorData)) break;
+        for (int i = 0; i < n; i++) BitVectorSet(outh, i, vectorData[i]);
+
 		//read outD
-		double vectorDataoutD[state.n];
-		if(!readArray(fr, line, maxLineLength, vectorDataoutD)){
-			break;
-		}
-		gsl_vector_view vectorViewoutD = gsl_vector_view_array(vectorDataoutD, state.n);
-		outD = &vectorViewoutD.vector;
+		double outD[state->n];
+		if(!readArray(fr, line, maxLineLength, outD)) break;
 		
 		//read outG
-		double matrixDataoutG[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutG)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutG = gsl_matrix_view_array(matrixDataoutG, state.n, state.n);
-		outG = &matrixViewoutG.matrix;
-		
+        struct BitMatrix* outG = newBitMatrixZero(n,n);
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(outG, i, j, 1);
+            }
+        }
+	
 		//read outGbar
-		double matrixDataoutGbar[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutGbar)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutGbar = gsl_matrix_view_array(matrixDataoutGbar, state.n, state.n);
-		outGbar = &matrixViewoutGbar.matrix;
-		
-		//read outJ
-		double matrixDataoutJ[state.n*state.n];
-		if(!readArray(fr, line, maxLineLength, matrixDataoutJ)){
-			break;
-		}
-		gsl_matrix_view matrixViewoutJ = gsl_matrix_view_array(matrixDataoutJ, state.n, state.n);
-		outJ = &matrixViewoutJ.matrix;
-		
-		double result = measurePauli(&state, m, zeta, xi);
+        struct BitMatrix* outGbar = newBitMatrixZero(n,n);
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(outGbar, i, j, 1);
+            }
+        }
+	
+        //read outJ
+        struct BitMatrix* outJ = newBitMatrixZero(n,n);
+		if(!readArray(fr, line, maxLineLength, matrixData)) break;
+	    for (int i = 0; i < state->n; i++) {
+            for (int j = 0; j < state->n; j++) {
+                if (matrixData[i*state->n + j] > 0) BitMatrixSet(outJ, i, j, 1);
+            }
+        }	
+
+        if (totalTests < 11 && 0) {
+            totalTests++;
+            continue;
+        }
+
+		double result = measurePauli(state, m, zeta, xi);
 		
 		int isResultWorking = result - outResult < 0.0001 ? 1 : 0;
-		int iskWorking = state.k == outk ? 1 : 0;
-		int isQWorking = state.Q == outQ ? 1 : 0;
-		int ishWorking = isVectorWorking(state.h, outh, state.k);
-		int isDWorking = isVectorWorking(state.D, outD, state.k);
-		int isGWorking = isMatrixWorking(state.G, outG, state.k);
-		int isGbarWorking = isMatrixWorking(state.Gbar, outGbar, state.k);
-		int isJWorking = isMatrixWorking(state.J, outJ, state.k);
-		
+		int iskWorking = state->k == outk ? 1 : 0;
+		int isQWorking = state->Q == outQ ? 1 : 0;
+		int ishWorking = BitVectorSame(state->h, outh);
+
+		int isDWorking = 1;
+        for (int i = 0; i < state->k; i++) {
+            if (getD(state, i) != (int)outD[i]) {
+                isDWorking = 0;
+                break;
+            }
+        }
+
+        int isGWorking = BitMatrixSame(state->G, outG);
+		int isGbarWorking = BitMatrixSame(state->Gbar, outGbar);
+
+        int isJWorking = 1;
+        for (int i = 0; i < state->k; i++) {
+            for (int j = 0; j < state->k; j++) {
+                if (BitMatrixGet(outJ, i, j) != BitMatrixGet(state->J, i, j)) {
+                    isJWorking = 0;
+                    break;
+                }
+            }
+            if (!isJWorking) break;
+        }
+
 		totalTests++;
+
 		if(isResultWorking*iskWorking*isQWorking*ishWorking*isDWorking*isGWorking*isGbarWorking*isJWorking > 0){
 			successTests++;
 		}
@@ -786,6 +556,15 @@ void testFileMeasurePauli(){
 			printf("%d %d %d %d %d %d %d %d ", isResultWorking, iskWorking, isQWorking, ishWorking, isDWorking, isGWorking, isGbarWorking, isJWorking);
 			printf("Test number %d failed.\n", totalTests);
 		}
+
+        freeStabilizerState(state);
+        BitVectorFree(outh);
+        BitVectorFree(xi);
+        BitVectorFree(zeta);
+        BitMatrixFree(outG);
+        BitMatrixFree(outGbar);
+        BitMatrixFree(outJ);
+        //break;
 	}
 	
 	fclose(fr);
@@ -799,13 +578,13 @@ void testFileMeasurePauli(){
 	printf("----------------------\n");
 }
 
+
 int main(){
 
     for (int i = 0; i < 1; i++) {  
         testFileExponentialSum();
         testFileShrink();
         testFileInnerProduct();
-        testFileExtend();
         testFileMeasurePauli();
     }
 	

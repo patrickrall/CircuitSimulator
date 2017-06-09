@@ -22,16 +22,28 @@ int main(void) {
     BitVectorFree(vec);
     srand(10);
 
+    */
     struct BitMatrix* mat1 = newBitMatrixRandom(3, 3);
+    struct BitMatrix* eye = newBitMatrixIdentity(3);
+    BitMatrixFlip(eye, 0, 2);
+    // struct BitMatrix* eye = newBitMatrixRandom(40, 40);
+
+    BitMatrixPrint(eye);
+    BitMatrixPrint(mat1);
+    BitMatrixMulMatrixLeft(eye, mat1);
     BitMatrixPrint(mat1);
 
-    printf("Rank: %d\n", BitMatrixRank(mat1));
-    */
 
+
+
+   // printf("Rank: %d\n", BitMatrixRank(mat1));
+
+    /*
     Complex z = ComplexPolar(1, M_PI/3);
     z = ComplexMul(z, z);
     ComplexPrint(z);
     printf("%f\n", ComplexMag(z));
+    */
 
     return 0;
 }
