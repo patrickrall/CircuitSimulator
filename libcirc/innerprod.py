@@ -9,6 +9,7 @@ from multiprocessing import Pool, cpu_count
 from libcirc.stabilizer.stabilizer import StabilizerState
 from libcirc.stateprep import prepH, prepL
 
+
 # Median of means calculation can be done via Chebychev and Chernoff bounds.
 # http://www.cs.utexas.edu/~ecprice/courses/randomized/notes/lec5.pdf
 # If sampledProjector has error worse than e with probability p,
@@ -165,9 +166,12 @@ def exactThread(args):
 
     projfactor = 1
     for g in range(len(phases)):
-        res = theta.measurePauli(phases[g], zs[g], xs[g])
+        # print(phases[g], zs[g].astype(int), xs[g].astype(int))
+        res, status = theta.measurePauli(phases[g], zs[g], xs[g], give_status=True)
+
         projfactor *= res
-        if res == 0: return 0  # theta annihilated by P
+
+        if res == 0 and False: return 0  # theta annihilated by P
 
     for j in range(0, 2**size):
         if L is None: phi = prepH(j, t)

@@ -92,6 +92,18 @@ void BitVectorSetRandom(struct BitVector* vec) {
 }
 
 
+void BitVectorSetZero(struct BitVector* vec) {
+    unsigned int bytes = (vec->size + 7)/8; // round up
+
+    vec->data = (unsigned char*)malloc(bytes);
+    for (unsigned int i = 0; i < bytes; i++) {
+        vec->data[i] = 0x00;
+    }
+}
+
+
+
+
 void BitVectorFree(struct BitVector* vec) {
     free(vec->data);
     free(vec);
@@ -283,6 +295,13 @@ void BitMatrixSetZero(struct BitMatrix* mat) {
     unsigned int bytes = (mat->rows*mat->cols + 7)/8; // round up
     for (unsigned int i = 0; i < bytes; i++) {
         mat->data[i] = 0x00;
+    }
+}
+
+void BitMatrixSetRandom(struct BitMatrix* mat) {
+    unsigned int bytes = (mat->rows*mat->cols + 7)/8; // round up
+    for (unsigned int i = 0; i < bytes; i++) {
+        mat->data[i] = rand() % 256;
     }
 }
 

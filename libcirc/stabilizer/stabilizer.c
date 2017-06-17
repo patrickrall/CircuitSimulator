@@ -622,7 +622,7 @@ void innerProductExact(struct StabilizerState* state1, struct StabilizerState* s
        
         for (int b = 0; b < state2->n; b++) {
 		    struct BitVector* G_b = BitMatrixGetRow(state->G, b);
-            BitMatrixSet(R, a, b, BitVectorInner(G_b, G2bar_a)) ;
+            BitMatrixSet(R, b, a, BitVectorInner(G_b, G2bar_a)) ;
             BitVectorFree(G_b);
         }
         
@@ -650,7 +650,7 @@ void innerProductExact(struct StabilizerState* state1, struct StabilizerState* s
     }
 
     BitMatrixXorSet(state->J, state2temp->J);
-    
+
     exponentialSumExact(state, eps, p, m);
     *p -= state1->k + state2->k;
 
@@ -828,8 +828,7 @@ double measurePauli(struct StabilizerState* state, int m, struct BitVector* zeta
     assert(state->n == (int)zeta->size);
     assert(state->n == (int)xi->size);
 
-
-	//write zeta, xi in basis of K
+    //write zeta, xi in basis of K
     struct BitVector* vecXi = newBitVector(state->n);
     struct BitVector* vecZeta = newBitVector(state->n);
 
@@ -857,10 +856,12 @@ double measurePauli(struct StabilizerState* state, int m, struct BitVector* zeta
 	//compute w in {0, 2, 4, 6} using eq. 88
 	int w = 2*m;
 	w += 4*(BitVectorInner(zeta, state->h) % 2);
-	w += 2*BitVectorInner(state->D1, vecXi);
-	w += 4*BitVectorInner(state->D2, vecXi);
 
 	for(int b=0; b<state->k; b++){
+	    w += getD(state, b) * BitVectorGet(vecXi, b);
+    }
+	
+    for(int b=0; b<state->k; b++){
 		for(int a=0;a<b;a++){
 			w += 4*BitMatrixGet(state->J, a, b)*BitVectorGet(vecXi, a)*BitVectorGet(vecXi, b);
 		}
@@ -909,8 +910,10 @@ double measurePauli(struct StabilizerState* state, int m, struct BitVector* zeta
 		}
 		else if(w==2 || w==6){
 			int sigma = 2 - w/2;
+
 			//Update Q, D, J using equations 100, 101
 			state->Q = (state->Q + sigma) % 8;
+            while (state->Q < 0) state->Q += 8;
 			for(int a=0;a<state->k;a++) {
                 int val = getD(state, a) - 2*sigma*BitVectorGet(eta, a);
                 while (val < 0) {

@@ -9,6 +9,7 @@ import libcirc.compile.projectors as projectors
 import os
 from subprocess import PIPE, Popen
 
+
 # calculate probability that a compiled circuit yields a measurement
 # circ is a compiled quantum circuit.
 #
@@ -86,7 +87,7 @@ def probability(circ, measure, config={}):
 
     # get projectors
     G, H, n, t = projectors.projectors(circ, measure, verbose=verbose,
-            x=config.get("x"), y=config.get("y"))
+                                       x=config.get("x"), y=config.get("y"))
 
     # configure sampling
     if not config.get("noapprox"):
@@ -102,18 +103,18 @@ def probability(circ, measure, config={}):
                 config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
                 config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
             else:  # just take the mean: L = chi/(p * e^2)
-                config["samples"] = int(np.ceil(chi * config.get("error")**(-2)
-                    * config.get("failprob")**(-1)))
+                config["samples"] = int(np.ceil(chi * config.get("error")**(-2) *
+                                                config.get("failprob")**(-1)))
                 config["bins"] = 1
 
             if not quiet:
                 print("Autopicking median of %d bins with %d samples per bin."
-                        % (config["bins"], config["samples"]))
+                      % (config["bins"], config["samples"]))
                 print("Ensure that the number of parallel cores is greater than %d."
-                        % config["samples"])
+                      % config["samples"])
 
-    if verbose:
-        print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
+        if verbose:
+            print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
@@ -191,9 +192,9 @@ def probability(circ, measure, config={}):
             denominator = exactProjector(Hprime, L, norm, procs=config.get("procs"))
         else:
             numerator = multiSampledProjector(Gprime, L, norm, samples=config.get("samples"),
-                    bins=config.get("bins"), procs=config.get("procs"))
+                                              bins=config.get("bins"), procs=config.get("procs"))
             denominator = multiSampledProjector(Hprime, L, norm, samples=config.get("samples"),
-                    bins=config.get("bins"), procs=config.get("procs"))
+                                                bins=config.get("bins"), procs=config.get("procs"))
 
     else:
         # --------------------------------------- C backend --------------------------------------
@@ -277,12 +278,7 @@ def probability(circ, measure, config={}):
             if not line:
                 break
 
-            if ("Numerator:" in line or "Denominator:" in line):
-                if not quiet:
-                    sys.stdout.write(line + "\r")
-                    sys.stdout.write("\033[K")
-            else:
-                out.append(line)
+            out.append(line)
 
         success = True
         try:

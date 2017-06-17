@@ -34,6 +34,7 @@ struct BitVector* newBitVector(unsigned int size);  // alloc and init to 0
 struct BitVector* newBitVectorRandom(unsigned int size);  // alloc and init randomly
 
 void BitVectorSetRandom(struct BitVector* vec);
+void BitVectorSetZero(struct BitVector* vec);
 
 void BitVectorFree(struct BitVector* vec);
 void BitVectorCopy(struct BitVector* vec1, struct BitVector* vec2); // vec1 <- vec2
@@ -50,7 +51,6 @@ unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
 
 void BitVectorXorSet(struct BitVector* vec1, struct BitVector* vec2); // vec1 <- vec1 ^ vec2
 
-
 /*************************** Bit Matrix *************************/
 
 struct BitMatrix {
@@ -65,6 +65,7 @@ struct BitMatrix* newBitMatrixRandom(unsigned int rows, unsigned int cols);  // 
 
 void BitMatrixFree(struct BitMatrix* mat);
 void BitMatrixSetZero(struct BitMatrix* mat);
+void BitMatrixSetRandom(struct BitMatrix* mat);
 void BitMatrixSetIdentity(struct BitMatrix* mat);
 void BitMatrixCopy(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat1 <- mat2
 void BitMatrixPrint(struct BitMatrix* mat);

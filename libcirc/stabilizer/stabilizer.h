@@ -1,4 +1,4 @@
-#include "../utils/matrix.h"
+#include "../utils/comms.h"
 
 
 //define K from RandomStabilizerState algorithm (page 16)

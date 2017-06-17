@@ -328,6 +328,7 @@ class StabilizerState:
         # Now K = K_1 \cap K_2
 
         y = np.dot(state2.Gbar[:state2.k, :], (state.h + state2.h)) % 2
+
         R = np.dot(state.G[:state.k:, :], state2.Gbar[:state2.k, :].T) % 2
 
         # R is now k by k_2. Since k <= k_2,
@@ -472,6 +473,7 @@ class StabilizerState:
         # compute w in {0, 2, 4, 6} using eq. 88
         w = 2*m
         w += 4*(np.dot(zeta, self.h) % 2)
+
         w += np.dot(self.D, vecXi)
         for b in range(self.k):
             for a in range(b):
