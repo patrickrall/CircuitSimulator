@@ -49,7 +49,7 @@ For a full explanation of the algorithm please see the original paper by Bravyi 
 
 The application is written in Python. Python is easy to read even for non-programmers and is available on all platforms. A full implementation of the algorithm in Python should be easy to install on all operating systems, and matches the pseudo-code in \url{http://arxiv.org/abs/1601.07601} almost line-by-line.
 
-The most time consuming part of the algorithm is the calculation of inner products $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit and $\ket{H^{\otimes t}}$ is a particular quantum state. This highly parallelizable task also has an implementation in C, designed to run on computer clusters using OpenMPI.
+The most time consuming part of the algorithm is the calculation of inner products $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit, and $\ket{H^{\otimes t}}$ is a particular quantum state. This highly parallelizable task also has an implementation in C, designed to run on computer clusters using OpenMPI.
 
 \subsection{Python Implementation}
 
@@ -67,7 +67,7 @@ Matplotlib is not strictly required for the algorithm itself, but several testin
 
 OpenMPI is an implementation of Message Passing Interface, a tool that allows many processes to communicate on a cluster. Small numbers of $T$-gates can be simulated using Python, but for larger numbers the OpenMPI version of the algorithm will be required, either on a single machine or on several.
 
-Download OpenMPI here: \url{https://www.open-mpi.org/software/ompi/v2.0/}
+Download OpenMPI here: \url{https://www.open-mpi.org/}
 
 \noindent Once OpenMPI is installed, C binaries can be compiled using \textit{mpicc} and executed using \textit{mpirun}. To compile the implementation simply change into the root directory and type \textit{make}.
 
@@ -80,29 +80,156 @@ Download OpenMPI here: \url{https://www.open-mpi.org/software/ompi/v2.0/}
 \section{Performance}
 \section{Approximations}
 
-The most of the work in the algorithm is to calculate $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit. $\ket{H} = \cos(\pi/8)\ket{0} + \sin(\pi/8)$ is the eigenstate of the Hadamard gate, and is a `magic' state that is used to implement $T$-gates.
+To achieve the fast scaling, the algorithm uses several complicated approximation tricks. You do not need to understand these in order to use the application. The default options make a reasonable compromise between accuracy and performance.
 
-The CircuitSimulator application implements efficient manipulations of so-called stabilizer states. $\ket{H}$ is not a stabilizer state, but we can write $\ket{H^{\otimes 2}}$ as a linear combination of two stabilizer states. To write $\ket{H^{\otimes t}}$ therefore require a linear combination of $\chi = O(2^{t/2})$. Now calculate $|\Pi\ket{H^{\otimes t}}|^2$:
-$$\ket{H^{\otimes t}} = \sum^\chi_{i=1} \ket{\phi_i} \hspace{3mm} \to \hspace{3mm} |\Pi\ket{H^{\otimes t}}|^2 = |\bra{H^{\otimes t}}\Pi\ket{H^{\otimes t}}| =\left| \sum^\chi_{i=1} \sum^\chi_{j=1}\bra{\phi_i}\Pi\ket{\phi_j}\right|$$
+However, the approximations are fully configurable. If you have specific accuracy or performance requirements this section will be helpful.
 
-There are $\chi^2 = O(2^t)$ terms in this sum, so this algorithm runs in $O(2^t)$. This calculation is so slow that Bravyi and Gosset did not include it in their paper. Instead, they developed several approximate techniques that can calculate output probabilities to arbitrarily small error.
+\subsection{Algorithm background}
 
-The slow approximation-free algorithm can be accessed using the \textsc{-noapprox} option.
+The most of the work in the algorithm is to calculate $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit. $\ket{H} = \cos(\pi/8)\ket{0} + \sin(\pi/8)$ is the eigenstate of the Hadamard gate, and is a `magic' state that is used to implement $T$-gates. 
 
-\subsection{Inner product calculation}
+The CircuitSimulator application implements efficient manipulations of so-called stabilizer states. $\ket{H}$ is not a stabilizer state, but we can write $\ket{H^{\otimes 2}}$ as a linear combination of two stabilizer states. To write $\ket{H^{\otimes t}}$ we therefore require a linear combination of $\chi = 2^{\lceil t/2\rceil}$ stabilizer states: $\ket{H^{\otimes t}} \propto \sum_{i=1}^\chi \ket{\phi_i}$.  We don't need to worry about normalization since we are calculating the ratio of two such inner products. Expand $|\Pi\ket{H^{\otimes t}}|^2$:
+$$\ket{H^{\otimes t}} = \sum^\chi_{i=1} \ket{\phi_i} \hspace{3mm} \to \hspace{3mm} |\Pi\ket{H^{\otimes t}}|^2 = |\bra{H^{\otimes t}}\Pi\ket{H^{\otimes t}}| \propto \left| \sum^\chi_{i=1} \sum^\chi_{j=1}\bra{\phi_i}\Pi\ket{\phi_j}\right|.\label{eq:decomp}$$
 
-To calculate inner products in $\chi = O(2^{t/2})$ time, the algorithm samples $\bra{\theta}\Pi\ket{H^{\otimes t}}$, where $\ket{\theta}$ is a random stabilizer state. Consider the random variable:
-$$\xi = \frac{2^t}{L} \sum_{i=1}^L \left| \bra{\theta_i} (\Pi \ket{H^t}) \right|^2\hspace{4mm}\to\hspace{4mm} \mathbb{E}(\xi) = | \Pi \ket{H^t}|^2,\hspace{4mm} \sigma = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\sqrt{L}} | \Pi \ket{H^t}|^2 $$
-
+There are $\chi^2 = 2^t$ terms in this sum, so this algorithm runs in $O(2^t)$. This calculation is so slow that Bravyi and Gosset did not include it in their paper. Instead, they developed several approximate techniques that can calculate output probabilities to arbitrarily small error.
 
 
+\subsection{Inner product approximation} \label{sec:ipa}
 
-\subsection{Magic state approximation}
+To calculate inner products in $O(\chi)$ time rather than $O(\chi^2)$, the algorithm samples $\bra{\theta}\Pi\ket{H^{\otimes t}}$, where $\ket{\theta}$ is a random stabilizer state. Define a random variable $\xi$ which is the average of $L$ samples from this distribution:
+
+$$\xi = \frac{2^t}{L} \sum_{i=1}^L \left| \bra{\theta_i} \Pi \ket{H^{\otimes t}} \right|\hspace{4mm}\to\hspace{4mm} \mathbb{E}(\xi) = | \Pi \ket{H^{\otimes t}}|^2,\hspace{4mm} \sigma = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\sqrt{L}} | \Pi \ket{H^{\otimes t}}|^2 $$
+
+\newcommand{\eps}{\varepsilon}
+The Chebychev inequality guarantees a multiplicative error of at most $\eps$ with failure probability $p$, provided $L$ is large enough:
+$$ L = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\eps p^2} \hspace{0.5cm}\to \hspace{0.5cm} \Big|\xi - |\Pi\ket{H^{\otimes t}}|^2 \Big| \leq \eps |\Pi\ket{H^{\otimes t}}|^2 $$
+
+This can be further improved via the median-of-means trick. The software can take the median several bins, each a sample from $\xi$, lowering the failure probability $p$ without needing to increase $L$. Median-of-means can only decrease $p$ and not decrease $\eps$, and is only worth it for $p < 0.0076$. See the comment in \textit{libcirc/innerprod.py} for details.
+
+The number of samples and bins can be set manually. However, you can also set $\eps$ and $p$ and have the software make the best choice for you.\\
+
+\noindent \textbf{Configuration}
+\begin{itemize}
+    \item This approximation is done by default. Turn it off using the \textsc{-nosampling} flag (In the code, this switch is called \textit{noapprox}).
+    \item Set the number of samples $L$ directly using the $\textsc{samples=}$ option. $L=2000$ is the default and guarantees $\eps = 0.1$ with $p = 95\%$.
+    \item Set the number of bins directly using the $\textsc{bins=}$ option. Default is 1 bin.
+    \item Set the multiplicative error $\eps$ with $\textsc{error=}$. Overrides $\textsc{samples=}$ and $\textsc{bins=}$.
+    \item Set the failure probability $p$ with $\textsc{failprob=}$. Overrides $\textsc{samples=}$ and $\textsc{bins=}$.
+\end{itemize}
+
+\subsection{Magic state approximation} \label{sec:msa}
+
+The state $\ket{H^{\otimes t}}$ can be exactly decomposed into $2^{\lceil t/2\rceil}$ stabilizer states. It can also be approximately decomposed into  $2^{k}$ stabilizer states, where $k$ can be smaller than $t/2$. The trick is to replace $\ket{H^{\otimes t}}$ with a similar state $\ket{\mathcal{L}}$, which is a function of a $t \times k$ binary matrix $\mathcal{L}$ of rank $k$. 
+
+$\mathcal{L}$ is sampled at random. The approximation has fidelity $|\braket{H^{\otimes t}|\mathcal{L}}|^2 = 1-\delta$, where $\delta$ is a function of $\mathcal{L}$. $k$ can be set manually, or calculated for a given expected value of $\delta$. For fixed $\delta$, the scaling is $k = O(0.23 t)$. But for $t\sim 10$ or less, we usually have $k > t/2$ so this approximation is only worth it for large $t$.
+
+The approximation incurs a constant error $\left|P_\text{out} - P_\text{correct}\right| < \sqrt{\delta}$. This is fine when sampling from the circuit output distribution, but may be unsuitable for calculating probabilities directly.
+
+Calculating $\delta$ is expensive, so it is not done by default. Calculating the rank of $\mathcal{L}$ is expensive, so it is not done by default. A random binary matrix usually has full rank.\\
+
+\noindent \textbf{Configuration}
+\begin{itemize}
+    \item This approximation is done by default when sampling. It is off by default when calculating probabilities. Turn it off using the \textsc{-exactstate} flag (In the code, this switch is called \textit{exact}).
+    \item Set $k$ directly using the $\textsc{k=}$ option. Software will not override if $k > t/2$, but will override if $k>t$ because then it is impossible for $\mathcal{L}$ to be full rank.
+    \item Set expected $\delta$ using the $\textsc{fidbound=}$ option. Default is $\delta = 10^{-5}$. Overridden by $\textsc{k=}$. If the automatically chosen $k$ is larger than $t/2$, the approximation is disabled.
+    \item Calculate and print $\delta$ with the $\textsc{-fidelity}$ flag. If $\textsc{fidbound=}$ is set, $\mathcal{L}$ is repeatedly sampled until $\delta$ is good enough.
+    \item Calculate the rank of $\mathcal{L}$ with the $\textsc{-rank}$ flag. Will repeatedly sample $\mathcal{L}$ until it has rank $k$.
+\end{itemize}
+
+\section{Code Map}
+
+Here is an outline of all files and functions in the code.
+
+\subsection{Front end}
+These functions are written in Python only.
+
+\begin{description}
+    \item[main] (main.py) Command line interface.\\ Compiles circuit from file using \textbf{compileCircuit} (libcirc/compile/compilecirc.py).\\ Parses arguments and feeds them to \textbf{probability} (libcirc/probability.py)\\ or \textbf{sampleQubits} (libcirc/sample.py).
+    \item[sampleQubits] (libcirc/sample.py) Samples from a circuit's output distribution.\\
+        Repeatedly calls \textbf{probability} (libcirc/probability.py).
+\end{description}
+
+\subsection{Compilation and Gadgetization}
+
+Written in Python only. Together these functions take a circuit file as described in section~\ref{sec:lang}, and calculate projectors $\Pi'$. Then all that is left to do is calculate $|\Pi'\ket{H^{\otimes t}}|^2$.
+
+\begin{description}
+    \item[compileCircuit] (libcirc/compile/compilecirc.py) Compiles ``main'' in a given file.\\
+        Calls \textbf{circuitSymbols} (same file) to extract ``main'' and all of its dependencies.
+        Then calls \textbf{compile} (same file) to return a self-contained circuit.
+    \item[circuitSymbols] (libcirc/compile/compilecirc.py) Extracts functions from a circuit file.\\
+        Recursively iterates over included files. Yields a dictionary of functions, noting their dependencies. Dictionary is complete in the sense that no dependency is left out.
+        Calls \textbf{commentParse} (same file) to remove comments.
+    \item[compile] (libcirc/compile/compilecirc.py) Takes a dictionary of symbols as outputted by \textbf{circuitSymbols} (same file). Takes a symbol from that dictionary and compiles it to a completely self-contained circuit using only the gates in \textbf{gateset} (same file). Uses \textbf{standardGate} (same file) to help parse lines of code.
+    \item[projectors] (libcirc/compile/projectors.py) Given bitstrings $x$ and $y$ and a circuit $C$, calculates the two projectors $\Pi_G = C(\ket{x}\bra{x} \otimes \ket{y}\bra{y})C^\dagger$ and $\Pi_H = C(\mathbb{I} \otimes \ket{y}\bra{y})C^\dagger$. Calls \textbf{standardGate} (libcirc/compile/compile.py) and \textbf{countY} (libcirc/compile/gadgetize.py) to count the number of bits needed for $x,y$. If $x,y$ are unspecified it chooses them at random. Calls \textbf{gadgetize} (libcirc/compile/gadgetize.py) to actually do the work.
+    \item[gadgetize] (libcirc/compile/gadgetize.py) Given bitstrings $x$ and $y$ and a circuit $C$, calculates the projector $\Pi_{x,y} = C(\ket{x}\bra{x} \otimes \ket{y}\bra{y})C^\dagger$.
+    \item[truncate] (libcirc/compile/projectors.py) Given a projector $\Pi$ with support on both $n$ circuit qubits and $t$ magic state qubits, truncates the circuit qubits by calculating $\Pi' = (\bra{0^{\otimes n}} \otimes \mathbb{I})\text{ } \Pi \text{ } (\ket{0^{\otimes n}} \otimes \mathbb{I})$. The output projector $\Pi'$ only has support on the magic state qubits.
+\end{description} 
+
+
+\subsection{Back end}
+These functions are written in Python and in C. File names and function names are identical. `.*' denotes `.c' or `.py', and sometimes `.h'.
+
+\begin{description}
+    \item[probability] (libcirc/probability.*) Calculates the probability of making a given measurement from a compiled circuit. Takes \textit{config} dictionary with many options.
+    \begin{enumerate}
+        \setlength{\itemsep}{1pt}
+        \item The Python version calculates projectors $\Pi_G'$ and $\Pi_H'$ using \textbf{projectors} and \textbf{truncate} (libcirc/compile/projectors.py).
+        \item Given the inner product approximation parameters (section~\ref{sec:ipa}), the number of samples and bins are calculated.
+        \item If using the C back end, the Python version passes the projectors and options to the C executable via the \textit{subprocess} module. The C implementation parses the projectors and inputs. Now either the C implementation or the Python implementation proceeds.
+        \item $\textbf{decompose}$ (same file) is used to calculate $\mathcal{L}$ if needed.
+            \item $|\Pi_G'\ket{H^{\otimes t}}|^2$ and $|\Pi_H'\ket{H^{\otimes t}}|^2$ are calculated. If using the inner product approximation (section~\ref{sec:ipa}), it uses \textbf{multiSampledProjector} (libcirc/innerprod.*). Otherwise it uses \textbf{exactProjector} (libcirc/innerprod.*).
+        \item Finally it outputs the probability $P = |\Pi_G'\ket{H^{\otimes t}}|^2 / |\Pi_H'\ket{H^{\otimes t}}|^2$, returning control to Python if necessary.
+    \end{enumerate}
+    \item[decompose] (libcirc/probability.*) Decomposes $\ket{H^{\otimes t}}$ into $\ket{\mathcal{L}}$ as needed in the magic state approximation (section~\ref{sec:msa}). Calculates $k$ given $\delta$ and $t$ if needed. Can also decide to disable the approximation if there is no benefit. Calculates the matrix $\mathcal{L}$ if needed and checks rank and $\delta$ if requested.
+    \item[multiSampledProjector] (libcirc/innerprod.*) Given a projector $\Pi$, calculates $|\Pi\ket{H^{\otimes t}}|^2$ using the inner product approximation (section~\ref{sec:ipa}). Takes the median of several $\xi$ bins, using \textbf{sampledProjector} (same file) to calculate $\xi$.
+    \item[sampledProjector] (libcirc/innerprod.*) Calculates $\xi$ (section~\ref{sec:ipa}), by averaging many samples of $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$ where $\ket{\phi}$ is a random stabilizer state. Runs in parallel over the samples using \textbf{singleProjectorSample} (same file) to sample $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$.
+    \item[singleProjectorSample] (libcirc/innerprod.*) Samples $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$ where $\ket{\phi}$ is a random stabilizer state. Uses the stabilizer library (libcirc/stabilizer/stabilizer.*). $\ket{H^{\otimes t}}$ is decomposed into $O(2^{t/2})$ stabilizer states, which are prepared using \textbf{prepH} (libcirc/stateprep.*).\\ If using the magic state approximation (section~\ref{sec:msa}), it calculates $|\bra{\phi}\Pi\ket{\mathcal{L}}|$. $\ket{L}$ is decomposed into stabilizer states, which are prepared using \textbf{prepL} (libcirc/stateprep.*).
+
+
+    \item[exactProjector] (libcirc/innerprod.*) Given a projector $\Pi$, calculates $|\Pi\ket{H^{\otimes t}}|^2$ without sampling. Continuing from the equation in section~\ref{eq:decomp}, now using zero-indexing:
+        $$ |\Pi\ket{H^{\otimes t}}|^2 = \left| \sum^{\chi-1}_{i=0} \sum^{\chi-1}_{j=0}\bra{\phi_i}\Pi\ket{\phi_j}\right| = \left| \sum^{\chi-1}_{j=0}\left(\sum^{\chi-1}_{i=0} \bra{\phi_i}\Pi\ket{\phi_j}\right)\right| $$
+        Runs in parallel over the $j$ sum, using \textbf{exactProjectorWork} (same file) to calculate $\sum^{\chi-1}_{i=0} \bra{\phi_i}\Pi\ket{\phi_j}$.
+
+    \item[exactProjectorWork] (libcirc/innerprod.*) Given an index $j$, calculates $\sum^{\chi-1}_{i=0} \bra{\phi_i}\Pi\ket{\phi_j}$. If the magic state approximation (section~\ref{sec:msa}) is used, $\ket{\phi_{i/j}}$ are prepared using \textbf{prepL} (libcirc/stateprep.*). Otherwise \textbf{prepH} (libcirc/stateprep.*) is used.
+
+    \item[prepH] (libcirc/stateprep.*) Given an index $0 \leq i < 2^{\lceil t/2\rceil}$, prepares a state $\ket{\phi_i}$ such that $\ket{H^{\otimes t}} \propto \sum_{i=0}^{2^{\lceil t/2 \rceil}-1} \ket{\phi_i} $. It achieves this using the decomposition $\ket{H^{\otimes 2}} \propto \ket{\alpha} + \ket{\beta}$ where $\ket{\alpha},\ket{\beta}$ are stabilizer states. $\ket{\phi_i}$ is a tensor product of several $\ket{\alpha}$ and $\ket{\beta}$. 
+    
+    \item[prepL] (libcirc/stateprep.*) \\Given $\mathcal{L}$ and an index $0 \leq i < 2^{ k}$, prepares a state $\ket{\phi_i}$ such that $\ket{\mathcal{L}} \propto \sum_{i=0}^{2^{k}-1} \ket{\phi_i} $. 
+  
+
+\end{description}
+
+\subsection{Stabilizer library}
+
+The files libcirc/stabilizer/stabilizer.* contain several functions for manipulating stabilizer states. These are explained in the appendix of \url{http://arxiv.org/abs/1601.07601}, but are listed here for completeness. Instead of using a tableau representation, it uses an affine subspace $\mathcal{K} \subset \mathbb{F}^{n}_2$ of dimension $k$ and a quadratic form $q$ such that $\ket{\phi} = |\mathcal{K}|^{-1/2}\sum_{x \in \mathcal{K}}e^{i \frac{\pi}{4}q(x)} \ket{x}$. In Python, a stabilizer state is a class. In C, a stabilizer state is a struct with a set of functions.
+
+\begin{description}
+    \item[printStabilizerState] (C function) and \textbf{display} (Python method) print Python code that initializes the state. Very useful for debugging.
+    \item[unpack] (Python method only) prints a state vector representation of the state.
+    \item[exponentialSum] $O(k^3)$. Calculates the sum $\sum_{x \in \mathbb{F}^k_2} e^{i\frac{\pi}{4}q(x)}$. Needed by \textbf{innerproduct}. Output is a complex number that can always be represented exactly by three integers $\eps, p, m$, so an exact version outputs these integers instead to avoid numerical error.
+    \item[shrink] $O(kn)$. Given a vector $\xi$ and bit $\alpha$, shrinks the space $\mathcal{K}$ so $x \cdot \xi = \alpha$ for all $x \in \mathcal{K}$.
+    \item[innerProduct] $O(n^3)$. Calculates the inner product between two stabilizer states. The complex output can also be written in terms of integers $\eps,p,m$.
+    \item[randomStabilizerState] Average case $O(n^2)$, worst case $O(n^3)$. Samples a random stabilizer state by starting with $\mathcal{K} = \mathbb{F}^n_2$ and randomly calling \textbf{shrink}.
+    \item[measurePauli] $O(n^2)$. Given a Pauli matrix $P = i^m X(\xi)Z(\zeta)$ in the form of an integer $m$ and two bit vectors $\xi,\zeta$, applies the projector onto the positive eigenspace $(1+P)/2$ to the state and returns the new state and its normalization. Uses a subroutine \textbf{extend} to add new vectors to $\mathcal{K}$.
+
+\end{description}
+
+\subsection{Utilities}
+
+These files are written in C only. 
+\begin{itemize}
+    \item libcirc/utils/matrix.h is a custom matrix library for manipulating bit vectors. \mbox{matrix.c} implements these by hand using bitwise operations, and \mbox{matrix-blas.c} implements them using the blas library.
+    \item libcirc/utils/comms.h implements wrappers around MPI calls to pass data between threads. It also implements a struct for Pauli projectors.
+\end{itemize}
+
+comms.h includes matrix.h, and stabilizer.h includes comms.h. C files include \mbox{stabilizer.h} when stabilizer operations are needed, and include comms.h otherwise.
+
 \section{Options and Parameters}
 \section{Measurement}
 \subsection{Weak Measurement}
 \subsection{Strong Measurement}
-\section{The Circuit Language}
+\section{The Circuit Language} \label{sec:lang}
 Lorem ipsum.
 
 

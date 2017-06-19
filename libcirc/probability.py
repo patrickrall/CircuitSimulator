@@ -28,7 +28,7 @@ from subprocess import PIPE, Popen
 #         Sampling method specification parameters.
 #         Calculate inner product exactly, or approximately by averaging samples
 #         from a probability distribution? How many samples? Use median of means?
-#     "noapprox": False,  # Don't randomize at all. Square of the runtime of approximate alg.
+#     "noapprox": False,  # Don't sample, and calculate inner product directly.
 #     "samples": 2000,    # Mean of 2000 samples gives mult. error 0.1 with 95% probability.
 #     "bins": 1,          # Number of groups of samples over which to take the median.
 #         Instead of manually setting samples and bins, can also auto-pick. Changing
@@ -110,7 +110,7 @@ def probability(circ, measure, config={}):
             if not quiet:
                 print("Autopicking median of %d bins with %d samples per bin."
                       % (config["bins"], config["samples"]))
-                print("Ensure that the number of parallel cores is greater than %d."
+                print("Ensure that the number of parallel cores is less than %d."
                       % config["samples"])
 
         if verbose:
@@ -280,6 +280,11 @@ def probability(circ, measure, config={}):
 
             out.append(line)
 
+            try:
+                float(line)
+            except:
+                print(line)
+
         success = True
         try:
             numerator = float(out[-2])
@@ -288,20 +293,9 @@ def probability(circ, measure, config={}):
             # these are errors, not warnings, so they are not silenced by quiet
 
             print("C code encountered error. Aborting.")
-            if len(out) > 0:
-                print("Begin C code output:")
-                for line in out:
-                    print(line)
-                print("End C code output.")
-            else:
-                print("C code gave no output.")
             success = False
 
         if not success: raise RuntimeError
-
-        # print C code output. Should respect quiet flag.
-        for line in out[:-2]:
-            print(line)
 
     # ------------------ end backend-dependent code ------------------
 
@@ -405,12 +399,12 @@ def decompose(t, config):
             innerProd = 2**k * v**(2*t) / Z_L
             if forceK:
                 # quiet can't be set for this
-                print("Inner product <H^t|L>: %f" % innerProd)
+                print("delta = 1 - <H^t|L>: %f" % 1 - innerProd)
                 break
             elif innerProd < 1-config.get("fidbound"):
-                if not quiet: print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
+                if not quiet: print("delta = 1 - <H^t|L>: %f - Not good enough!" % 1 - innerProd)
             else:
-                if not quiet: print("Inner product <H^t|L>: %f" % innerProd)
+                if not quiet: print("delta = 1 - <H^t|L>: %f" % 1 - innerProd)
         else: break
 
     if config.get("fidelity"):

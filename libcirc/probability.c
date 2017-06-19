@@ -75,7 +75,7 @@ void master(int argc, char* argv[]) {
 
     int verbose;
     fscanf(stream,"%d", &verbose);
-    if (print) printf("verbose: %d\n", quiet);
+    if (print) printf("verbose: %d\n", verbose);
 
     // Sampling method
     int noapprox;
@@ -136,6 +136,11 @@ void master(int argc, char* argv[]) {
     double norm;
     struct BitMatrix* L; 
     decompose(t, &L, &norm, &exact, &k, fidbound, rank, fidelity, forceL, verbose, quiet); 
+
+    if (verbose) {
+        if (exact) printf("Using exact decomposition of |H^t>: 2^%d\n", (t+1)/2);
+        else printf("Stabilizer rank of |L>: 2^%d\n", k);
+    }
 
     // random seed
     int seed = (int)time(NULL);
@@ -274,12 +279,12 @@ void decompose(const int t, struct BitMatrix **L, double *norm, int *exact, int 
 		forceK  = 0;
 		//pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
 		*k = ceil(1 - 2*t*log2(v) - log2(fidbound));
-        if (verbose) printf("Autopicking k = %d.", *k);
+        if (verbose) printf("Autopicking k = %d.\n", *k);
 	}
 	
 	//can achieve k = t/2 by pairs of stabilizer states
 	if(*k > t/2 && !forceK && !forceL){
-        if (verbose) printf("k > t/2. Reverting to exact decomposition.");
+        if (verbose) printf("k > t/2. Reverting to exact decomposition.\n");
         *exact = 1;
 		return;
 	}
@@ -346,12 +351,12 @@ void decompose(const int t, struct BitMatrix **L, double *norm, int *exact, int 
 			
 			if(forceK) {
                 // quiet can't be set for this
-				printf("Inner product <H^t|L>: %lf\n", innerProduct);
+				printf("delta = 1 - <H^t|L>: %lf\n", 1 - innerProduct);
 				break;
 			} else if (innerProduct < 1-fidbound) {
-				if (!quiet) printf("Inner product <H^t|L>: %lf - Not good enough!\n", innerProduct);
+				if (!quiet) printf("delta = 1 - <H^t|L>: %lf - Not good enough!\n", 1 - innerProduct);
 			} else {
-				if (!quiet) printf("Inner product <H^t|L>: %lf\n", innerProduct);
+				if (!quiet) printf("delta = 1 - <H^t|L>: %lf\n", 1 - innerProduct);
 			}
 		}
 		else break;

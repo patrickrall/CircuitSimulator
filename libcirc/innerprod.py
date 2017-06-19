@@ -16,9 +16,6 @@ from libcirc.stateprep import prepH, prepL
 # then multiSampledProjector has error worse than e with probability
 # less than delta = exp(-2m(1/2 - p)^2) where m is the number of bins.
 #
-# Can only parallelize over means, so (means) must be larger
-# than the number of cores.
-#
 # Since L is proportional to 1/p, best total number of samples m*L is minimized
 # at the minimum of m/p proportional to p^(-1) * (1/2 - p)^(-2) which is p = 1/6.
 # Thus for best results pick L = 6 * (2^t - 1)/(2^t + 1) * (1/e^2)
@@ -144,14 +141,14 @@ def exactProjector(P, L, norm, procs=1):
     queries = [(P, L, i) for i in range(0, 2**size)]
     if procs > 1:
         pool = Pool(procs)
-        total = sum(pool.map(exactThread, queries))
+        total = sum(pool.map(exactProjectorWork, queries))
         pool.close()
     else:
-        total = sum(map(exactThread, queries))
+        total = sum(map(exactProjectorWork, queries))
     return np.abs(total)
 
 
-def exactThread(args):
+def exactProjectorWork(args):
     (P, L, i) = args
     (phases, xs, zs) = P
 
@@ -166,7 +163,6 @@ def exactThread(args):
 
     projfactor = 1
     for g in range(len(phases)):
-        # print(phases[g], zs[g].astype(int), xs[g].astype(int))
         res, status = theta.measurePauli(phases[g], zs[g], xs[g], give_status=True)
 
         projfactor *= res
