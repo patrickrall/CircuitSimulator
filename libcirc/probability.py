@@ -89,33 +89,6 @@ def probability(circ, measure, config={}):
     G, H, n, t = projectors.projectors(circ, measure, verbose=verbose,
                                        x=config.get("x"), y=config.get("y"))
 
-    # configure sampling
-    if not config.get("noapprox"):
-        if not config.get("samples"): config["samples"] = 2000
-        if not config.get("bins"): config["bins"] = 1
-        if not config.get("error"): config["error"] = 0.1
-        if not config.get("failprob"): config["failprob"] = 0.05
-
-        if config.get("error") is not 0.1 or config.get("failprob") is not 0.05:
-            # auto-pick samples and bins.
-            chi = (2**t - 1)/(2**t + 1)
-            if config.get("failprob") < 0.0076:  # median of means worth it
-                config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
-                config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
-            else:  # just take the mean: L = chi/(p * e^2)
-                config["samples"] = int(np.ceil(chi * config.get("error")**(-2) *
-                                                config.get("failprob")**(-1)))
-                config["bins"] = 1
-
-            if not quiet:
-                print("Autopicking median of %d bins with %d samples per bin."
-                      % (config["bins"], config["samples"]))
-                print("Ensure that the number of parallel cores is less than %d."
-                      % config["samples"])
-
-        if verbose:
-            print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
-
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
     Hprime, v = projectors.truncate(n, H)
@@ -175,6 +148,33 @@ def probability(circ, measure, config={}):
             if not quiet: print("Reverting to python implementation")
             config["python"] = True
 
+    # configure sampling
+    if not config.get("noapprox"):
+        if not config.get("samples"): config["samples"] = 2000
+        if not config.get("bins"): config["bins"] = 1
+        if not config.get("error"): config["error"] = 0.2
+        if not config.get("failprob"): config["failprob"] = 0.05
+
+        if config.get("error") is not 0.2 or config.get("failprob") is not 0.05:
+            # auto-pick samples and bins.
+            chi = (2**t - 1)/(2**t + 1)
+            if config.get("failprob") < 0.0076:  # median of means worth it
+                config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
+                config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
+            else:  # just take the mean: L = chi/(p * e^2)
+                config["samples"] = int(np.ceil(chi * config.get("error")**(-2) *
+                                                config.get("failprob")**(-1)))
+                config["bins"] = 1
+
+            if not quiet:
+                print("Autopicking median of %d bins with %d samples per bin."
+                      % (config["bins"], config["samples"]))
+                print("Ensure that the number of parallel cores is less than %d."
+                      % config["samples"])
+
+        if verbose:
+            print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
+
     # ------------------------------------ Python backend ------------------------------------
     if config.get("python"):
         # calculate |L> ~= |H>
@@ -186,6 +186,15 @@ def probability(circ, measure, config={}):
         if verbose:
             if L is None: print("Using exact decomposition of |H^t>: 2^%d" % np.ceil(t/2))
             else: print("Stabilizer rank of |L>: 2^%d" % len(L))
+
+        if L is None:
+            if config.get("samples")*config.get("bins") > 2**np.ceil(t/2):
+                config["noapprox"] = True
+                if verbose: print("Number of samples is greater than 2^%d. Disabling sampling." % np.ceil(t/2))
+        else:
+            if config.get("samples")*config.get("bins") > 2**len(L):
+                config.get["noapprox"] = True
+                if verbose: print("Number of samples is greater than 2^%d. Disabling sampling." % len(L))
 
         if config.get("noapprox"):
             numerator = exactProjector(Gprime, L, norm, procs=config.get("procs"))
@@ -336,7 +345,7 @@ def decompose(t, config):
             raise ValueError("Need to specify either k or fidbound, or set exact=True to determine sampling method.")
         # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
         k = np.ceil(1 - 2*t*np.log2(v) - np.log2(config.get("fidbound")))
-        if verbose: print("Autopicking k = %d." % k)
+        if verbose: print("Autopicking k = %d to achieve delta = %f." % (k, config.get("fidbound")))
     k = int(k)
 
     # can achieve k = t/2 by pairs of stabilizer states

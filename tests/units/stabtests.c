@@ -383,6 +383,7 @@ void testFileInnerProduct(){
 
         freeStabilizerState(state1);
         freeStabilizerState(state2);
+        if (totalTests > 50) break;
 	}
 	
 	fclose(fr);
@@ -582,10 +583,10 @@ void testFileMeasurePauli(){
 int main(){
 
     for (int i = 0; i < 1; i++) {  
-        testFileExponentialSum();
-        testFileShrink();
+        //testFileExponentialSum();
+        //testFileShrink();
         testFileInnerProduct();
-        testFileMeasurePauli();
+        //testFileMeasurePauli();
     }
 	
 	return 0;

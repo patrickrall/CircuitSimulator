@@ -128,6 +128,14 @@ void master(int argc, char* argv[]) {
     if (print) printf("H:\n");
     if (print) printProjector(H);
 
+    /************** BLAS or custom back end *************/
+
+    #ifdef BLAS
+        if (verbose) printf("Using BLAS for matrix operations.\n");
+    #else 
+        if (verbose) printf("Using custom code for matrix operations.\n");
+    #endif
+
     /************** Call decompose, send data to workers *************/
    
     int world_size;
@@ -140,6 +148,18 @@ void master(int argc, char* argv[]) {
     if (verbose) {
         if (exact) printf("Using exact decomposition of |H^t>: 2^%d\n", (t+1)/2);
         else printf("Stabilizer rank of |L>: 2^%d\n", k);
+    }
+
+    if (exact) {
+        if (samples*bins > pow(2,(t+1)/2)) {
+            noapprox = 1;
+            if (verbose) printf("Number of samples is greater than 2^%d. Disabling sampling.\n", (t+1)/2);
+        }
+    } else {
+        if (samples*bins > pow(2,k)) {
+            noapprox = 1;
+            if (verbose) printf("Number of samples is greater than 2^%d. Disabling sampling.\n", k);
+        }
     }
 
     // random seed
@@ -279,7 +299,7 @@ void decompose(const int t, struct BitMatrix **L, double *norm, int *exact, int 
 		forceK  = 0;
 		//pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
 		*k = ceil(1 - 2*t*log2(v) - log2(fidbound));
-        if (verbose) printf("Autopicking k = %d.\n", *k);
+        if (verbose) printf("Autopicking k = %d to achieve delta = %f.\n", *k, fidbound);
 	}
 	
 	//can achieve k = t/2 by pairs of stabilizer states

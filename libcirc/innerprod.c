@@ -230,19 +230,30 @@ Complex exactProjectorWork(int i, struct Projector* P, struct BitMatrix* L, int 
         }
     } 
     // Evaluate other components
-    Complex total = {0,0};
     struct StabilizerState* phi;
 
     int size;
     if (exact) size = pow(2, ceil((double)t / 2));
     else size = pow(2, k);
 
-    for (int j = 0; j < size; j++) {
+    // Diagonal term
+    if (exact) phi = prepH(i, t);
+    else phi = prepL(i, t, L);
+
+    Complex innerProd = innerProduct(theta, phi);
+    Complex total = ComplexMulReal(innerProd, projfactor); 
+
+    freeStabilizerState(phi);
+
+    // Off diagonal terms
+    for (int j = i+1; j < size; j++) {
         if (exact) phi = prepH(j, t);
         else phi = prepL(j, t, L);
 
         Complex innerProd = innerProduct(theta, phi);
-        total = ComplexAdd(total, ComplexMulReal(innerProd, projfactor));         
+        innerProd.re *= 2*projfactor;
+        innerProd.im = 0;
+        total = ComplexAdd(total, innerProd);         
 
         freeStabilizerState(phi);
     }

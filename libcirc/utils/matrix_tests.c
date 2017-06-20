@@ -3,17 +3,11 @@
 #include "matrix.h"
 
 int main(void) {
-    /*
-    struct BitVector* vec = newBitVector(200);
+   /* 
+    struct BitVector* vec = newBitVectorRandom(20);
 
-    BitVectorSet(vec, 13, 1);
-    BitVectorSet(vec, 12, 1);
-    BitVectorSet(vec, 11, 1);
-    BitVectorSet(vec, 7, 1);
-    BitVectorSet(vec, 2, 2);
 
-    struct BitVector* vec2 = newBitVector(200);
-    BitVectorCopy(vec, vec2);
+    struct BitVector* vec2 = newBitVectorRandom(20);
 
     BitVectorPrint(vec2);
     BitVectorPrint(vec);
@@ -21,19 +15,18 @@ int main(void) {
     printf("Inner: %d\n", BitVectorInner(vec, vec2));
     BitVectorFree(vec);
     srand(10);
-
     */
-    struct BitMatrix* mat1 = newBitMatrixRandom(3, 3);
-    struct BitMatrix* eye = newBitMatrixIdentity(3);
-    BitMatrixFlip(eye, 0, 2);
-    // struct BitMatrix* eye = newBitMatrixRandom(40, 40);
+   
+    
+    struct BitMatrix* mat1 = newBitMatrixIdentity(2);
+    struct BitMatrix* eye = newBitMatrixIdentity(2);
+    BitMatrixSet(mat1, 1,0,1);
 
-    BitMatrixPrint(eye);
-    BitMatrixPrint(mat1);
-    BitMatrixMulMatrixLeft(eye, mat1);
-    BitMatrixPrint(mat1);
-
-
+    //BitMatrixPrint(mat1);
+    //BitMatrixPrint(eye);
+    
+    struct BitMatrix* out = BitMatrixMulMatrix(mat1, eye);
+    //BitMatrixPrint(out);
 
 
    // printf("Rank: %d\n", BitMatrixRank(mat1));

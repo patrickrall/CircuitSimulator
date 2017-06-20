@@ -156,8 +156,6 @@ def exactProjectorWork(args):
     if L is None: size = int(np.ceil(t/2))
     else: size = len(L)
 
-    total = 0
-
     if L is None: theta = prepH(i, t)
     else: theta = prepL(i, t, L)
 
@@ -169,11 +167,20 @@ def exactProjectorWork(args):
 
         if res == 0 and False: return 0  # theta annihilated by P
 
-    for j in range(0, 2**size):
+    # diagonal term
+    if L is None: phi = prepH(i, t)
+    else: phi = prepL(i, t, L)
+
+    total = 0
+
+    inner = StabilizerState.innerProduct(theta, phi)
+    total += inner * projfactor
+
+    # off diagonal terms
+    for j in range(i+1, 2**size):
         if L is None: phi = prepH(j, t)
         else: phi = prepL(j, t, L)
 
         inner = StabilizerState.innerProduct(theta, phi)
-
-        total += inner * projfactor
+        total += 2 * np.real(inner) * projfactor
     return total

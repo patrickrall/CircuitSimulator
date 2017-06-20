@@ -96,13 +96,13 @@ There are $\chi^2 = 2^t$ terms in this sum, so this algorithm runs in $O(2^t)$. 
 
 \subsection{Inner product approximation} \label{sec:ipa}
 
-To calculate inner products in $O(\chi)$ time rather than $O(\chi^2)$, the algorithm samples $\bra{\theta}\Pi\ket{H^{\otimes t}}$, where $\ket{\theta}$ is a random stabilizer state. Define a random variable $\xi$ which is the average of $L$ samples from this distribution:
+To calculate inner products in $O(\chi)$ time rather than $O(\chi^2)$, the algorithm samples $\bra{\theta}\Pi\ket{H^{\otimes t}}$, where $\ket{\theta}$ is a random stabilizer state. Define a random variable $\xi$ which is the average of $N$ samples from this distribution:
 
-$$\xi = \frac{2^t}{L} \sum_{i=1}^L \left| \bra{\theta_i} \Pi \ket{H^{\otimes t}} \right|\hspace{4mm}\to\hspace{4mm} \mathbb{E}(\xi) = | \Pi \ket{H^{\otimes t}}|^2,\hspace{4mm} \sigma = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\sqrt{L}} | \Pi \ket{H^{\otimes t}}|^2 $$
+$$\xi = \frac{2^t}{N} \sum_{i=1}^N \left| \bra{\theta_i} \Pi \ket{H^{\otimes t}} \right|\hspace{4mm}\to\hspace{4mm} \mathbb{E}(\xi) = | \Pi \ket{H^{\otimes t}}|^2,\hspace{4mm} \sigma = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\sqrt{N}} | \Pi \ket{H^{\otimes t}}|^2 $$
 
 \newcommand{\eps}{\varepsilon}
-The Chebychev inequality guarantees a multiplicative error of at most $\eps$ with failure probability $p$, provided $L$ is large enough:
-$$ L = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\eps p^2} \hspace{0.5cm}\to \hspace{0.5cm} \Big|\xi - |\Pi\ket{H^{\otimes t}}|^2 \Big| \leq \eps |\Pi\ket{H^{\otimes t}}|^2 $$
+The Chebychev inequality guarantees a multiplicative error of at most $\eps$ with failure probability $p$, provided $N$ is large enough:
+$$ N = \sqrt{\frac{2^t - 1}{2^t + 1}} \frac{1}{\eps p^2} \hspace{0.5cm}\to \hspace{0.5cm} \Big|\xi - |\Pi\ket{H^{\otimes t}}|^2 \Big| \leq \eps |\Pi\ket{H^{\otimes t}}|^2 $$
 
 This can be further improved via the median-of-means trick. The software can take the median several bins, each a sample from $\xi$, lowering the failure probability $p$ without needing to increase $L$. Median-of-means can only decrease $p$ and not decrease $\eps$, and is only worth it for $p < 0.0076$. See the comment in \textit{libcirc/innerprod.py} for details.
 
@@ -111,17 +111,17 @@ The number of samples and bins can be set manually. However, you can also set $\
 \noindent \textbf{Configuration}
 \begin{itemize}
     \item This approximation is done by default. Turn it off using the \textsc{-nosampling} flag (In the code, this switch is called \textit{noapprox}).
-    \item Set the number of samples $L$ directly using the $\textsc{samples=}$ option. $L=2000$ is the default and guarantees $\eps = 0.1$ with $p = 95\%$.
+    \item Set the number of samples $L$ directly using the $\textsc{samples=}$ option. $L=2000$ is the default and guarantees $\eps = 0.2$ with $p = 5\%$ for large $t$.
     \item Set the number of bins directly using the $\textsc{bins=}$ option. Default is 1 bin.
     \item Set the multiplicative error $\eps$ with $\textsc{error=}$. Overrides $\textsc{samples=}$ and $\textsc{bins=}$.
     \item Set the failure probability $p$ with $\textsc{failprob=}$. Overrides $\textsc{samples=}$ and $\textsc{bins=}$.
 \end{itemize}
 
-\subsection{Magic state approximation} \label{sec:msa}
+\subsection{$\mathcal{L}$ approximation} \label{sec:msa}
 
 The state $\ket{H^{\otimes t}}$ can be exactly decomposed into $2^{\lceil t/2\rceil}$ stabilizer states. It can also be approximately decomposed into  $2^{k}$ stabilizer states, where $k$ can be smaller than $t/2$. The trick is to replace $\ket{H^{\otimes t}}$ with a similar state $\ket{\mathcal{L}}$, which is a function of a $t \times k$ binary matrix $\mathcal{L}$ of rank $k$. 
 
-$\mathcal{L}$ is sampled at random. The approximation has fidelity $|\braket{H^{\otimes t}|\mathcal{L}}|^2 = 1-\delta$, where $\delta$ is a function of $\mathcal{L}$. $k$ can be set manually, or calculated for a given expected value of $\delta$. For fixed $\delta$, the scaling is $k = O(0.23 t)$. But for $t\sim 10$ or less, we usually have $k > t/2$ so this approximation is only worth it for large $t$.
+$\mathcal{L}$ is sampled at random. The approximation has fidelity $|\braket{H^{\otimes t}|\mathcal{L}}|^2 = 1-\delta$, where $\delta$ is a function of $\mathcal{L}$. $k$ can be set manually, or calculated for a given expected value of $\delta$. For fixed $\delta$ and large $t$, the scaling is $k \approx 0.23 t$. But for $t < 65$ or less and $\delta = 10^{-5}$, we have $k > t/2$ so this approximation is only worth it for large $t$.
 
 The approximation incurs a constant error $\left|P_\text{out} - P_\text{correct}\right| < \sqrt{\delta}$. This is fine when sampling from the circuit output distribution, but may be unsuitable for calculating probabilities directly.
 
@@ -129,7 +129,7 @@ Calculating $\delta$ is expensive, so it is not done by default. Calculating the
 
 \noindent \textbf{Configuration}
 \begin{itemize}
-    \item This approximation is done by default when sampling. It is off by default when calculating probabilities. Turn it off using the \textsc{-exactstate} flag (In the code, this switch is called \textit{exact}).
+    \item This approximation is on by default when sampling from the circuit output distribution. It is off by default when calculating probabilities. Force it off using the \textsc{-exactstate} flag (In the code, this switch is called \textit{exact}). Force it on by setting $k$ or $\delta$ as described below.
     \item Set $k$ directly using the $\textsc{k=}$ option. Software will not override if $k > t/2$, but will override if $k>t$ because then it is impossible for $\mathcal{L}$ to be full rank.
     \item Set expected $\delta$ using the $\textsc{fidbound=}$ option. Default is $\delta = 10^{-5}$. Overridden by $\textsc{k=}$. If the automatically chosen $k$ is larger than $t/2$, the approximation is disabled.
     \item Calculate and print $\delta$ with the $\textsc{-fidelity}$ flag. If $\textsc{fidbound=}$ is set, $\mathcal{L}$ is repeatedly sampled until $\delta$ is good enough.
@@ -177,21 +177,22 @@ These functions are written in Python and in C. File names and function names ar
         \item The Python version calculates projectors $\Pi_G'$ and $\Pi_H'$ using \textbf{projectors} and \textbf{truncate} (libcirc/compile/projectors.py).
         \item Given the inner product approximation parameters (section~\ref{sec:ipa}), the number of samples and bins are calculated.
         \item If using the C back end, the Python version passes the projectors and options to the C executable via the \textit{subprocess} module. The C implementation parses the projectors and inputs. Now either the C implementation or the Python implementation proceeds.
-        \item $\textbf{decompose}$ (same file) is used to calculate $\mathcal{L}$ if needed.
+        \item $\textbf{decompose}$ (same file) calculates $\mathcal{L}$ if needed. If $\chi = 2^k$ or $2^{\lceil t/2 \rceil}$ is smaller than the total number of samples, inner product sampling (section~\ref{sec:ipa}) is disabled.
             \item $|\Pi_G'\ket{H^{\otimes t}}|^2$ and $|\Pi_H'\ket{H^{\otimes t}}|^2$ are calculated. If using the inner product approximation (section~\ref{sec:ipa}), it uses \textbf{multiSampledProjector} (libcirc/innerprod.*). Otherwise it uses \textbf{exactProjector} (libcirc/innerprod.*).
         \item Finally it outputs the probability $P = |\Pi_G'\ket{H^{\otimes t}}|^2 / |\Pi_H'\ket{H^{\otimes t}}|^2$, returning control to Python if necessary.
     \end{enumerate}
-    \item[decompose] (libcirc/probability.*) Decomposes $\ket{H^{\otimes t}}$ into $\ket{\mathcal{L}}$ as needed in the magic state approximation (section~\ref{sec:msa}). Calculates $k$ given $\delta$ and $t$ if needed. Can also decide to disable the approximation if there is no benefit. Calculates the matrix $\mathcal{L}$ if needed and checks rank and $\delta$ if requested.
+    \item[decompose] (libcirc/probability.*) Decomposes $\ket{H^{\otimes t}}$ into $\ket{\mathcal{L}}$ as needed in the $\mathcal{L}$ approximation (section~\ref{sec:msa}). Calculates $k$ given $\delta$ and $t$ if needed. Can also decide to disable the approximation if there is no benefit. Calculates the matrix $\mathcal{L}$ if needed and checks rank and $\delta$ if requested.
     \item[multiSampledProjector] (libcirc/innerprod.*) Given a projector $\Pi$, calculates $|\Pi\ket{H^{\otimes t}}|^2$ using the inner product approximation (section~\ref{sec:ipa}). Takes the median of several $\xi$ bins, using \textbf{sampledProjector} (same file) to calculate $\xi$.
     \item[sampledProjector] (libcirc/innerprod.*) Calculates $\xi$ (section~\ref{sec:ipa}), by averaging many samples of $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$ where $\ket{\phi}$ is a random stabilizer state. Runs in parallel over the samples using \textbf{singleProjectorSample} (same file) to sample $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$.
-    \item[singleProjectorSample] (libcirc/innerprod.*) Samples $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$ where $\ket{\phi}$ is a random stabilizer state. Uses the stabilizer library (libcirc/stabilizer/stabilizer.*). $\ket{H^{\otimes t}}$ is decomposed into $O(2^{t/2})$ stabilizer states, which are prepared using \textbf{prepH} (libcirc/stateprep.*).\\ If using the magic state approximation (section~\ref{sec:msa}), it calculates $|\bra{\phi}\Pi\ket{\mathcal{L}}|$. $\ket{L}$ is decomposed into stabilizer states, which are prepared using \textbf{prepL} (libcirc/stateprep.*).
+    \item[singleProjectorSample] (libcirc/innerprod.*) Samples $|\bra{\phi}\Pi\ket{H^{\otimes t}}|$ where $\ket{\phi}$ is a random stabilizer state. Uses the stabilizer library (libcirc/stabilizer/stabilizer.*). $\ket{H^{\otimes t}}$ is decomposed into $2^{t/2}$ stabilizer states, which are prepared using \textbf{prepH} (libcirc/stateprep.*).\\ If using the $\mathcal{L}$ approximation (section~\ref{sec:msa}), it calculates $|\bra{\phi}\Pi\ket{\mathcal{L}}|$. $\ket{L}$ is decomposed into $2^k$ stabilizer states, which are prepared using \textbf{prepL} (libcirc/stateprep.*).
+
 
 
     \item[exactProjector] (libcirc/innerprod.*) Given a projector $\Pi$, calculates $|\Pi\ket{H^{\otimes t}}|^2$ without sampling. Continuing from the equation in section~\ref{eq:decomp}, now using zero-indexing:
-        $$ |\Pi\ket{H^{\otimes t}}|^2 = \left| \sum^{\chi-1}_{i=0} \sum^{\chi-1}_{j=0}\bra{\phi_i}\Pi\ket{\phi_j}\right| = \left| \sum^{\chi-1}_{j=0}\left(\sum^{\chi-1}_{i=0} \bra{\phi_i}\Pi\ket{\phi_j}\right)\right| $$
-        Runs in parallel over the $j$ sum, using \textbf{exactProjectorWork} (same file) to calculate $\sum^{\chi-1}_{i=0} \bra{\phi_i}\Pi\ket{\phi_j}$.
+        $$ |\Pi\ket{H^{\otimes t}}|^2 = \left| \sum^{\chi-1}_{i=0} \sum^{\chi-1}_{j=0}\bra{\phi_i}\Pi\ket{\phi_j}\right| = \left| \sum^{\chi-1}_{i=0}\left( \bra{\phi_i}\Pi\ket{\phi_i} + \sum^{\chi-1}_{j=i+1}2\text{Re}( \bra{\phi_j}\Pi\ket{\phi_i})\right)\right| $$
+        Runs in parallel over the $j$ sum, using \textbf{exactProjectorWork} (same file) to calculate the term in big parentheses.
 
-    \item[exactProjectorWork] (libcirc/innerprod.*) Given an index $j$, calculates $\sum^{\chi-1}_{i=0} \bra{\phi_i}\Pi\ket{\phi_j}$. If the magic state approximation (section~\ref{sec:msa}) is used, $\ket{\phi_{i/j}}$ are prepared using \textbf{prepL} (libcirc/stateprep.*). Otherwise \textbf{prepH} (libcirc/stateprep.*) is used.
+    \item[exactProjectorWork] (libcirc/innerprod.*) Given an index $i$, calculates a term in the $i$ sum above. If the $\mathcal{L}$ approximation (section~\ref{sec:msa}) is used, $\ket{\phi_{i/j}}$ are prepared using \textbf{prepL} (libcirc/stateprep.*). Otherwise \textbf{prepH} (libcirc/stateprep.*) is used.
 
     \item[prepH] (libcirc/stateprep.*) Given an index $0 \leq i < 2^{\lceil t/2\rceil}$, prepares a state $\ket{\phi_i}$ such that $\ket{H^{\otimes t}} \propto \sum_{i=0}^{2^{\lceil t/2 \rceil}-1} \ket{\phi_i} $. It achieves this using the decomposition $\ket{H^{\otimes 2}} \propto \ket{\alpha} + \ket{\beta}$ where $\ket{\alpha},\ket{\beta}$ are stabilizer states. $\ket{\phi_i}$ is a tensor product of several $\ket{\alpha}$ and $\ket{\beta}$. 
     
@@ -225,10 +226,9 @@ These files are written in C only.
 
 comms.h includes matrix.h, and stabilizer.h includes comms.h. C files include \mbox{stabilizer.h} when stabilizer operations are needed, and include comms.h otherwise.
 
-\section{Options and Parameters}
+
 \section{Measurement}
-\subsection{Weak Measurement}
-\subsection{Strong Measurement}
+
 \section{The Circuit Language} \label{sec:lang}
 Lorem ipsum.
 
