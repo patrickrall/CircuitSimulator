@@ -6,3 +6,7 @@ tests/exampleFunctionCalls/Shrink.txt
 */__pycache__/*
 */__pycache__
 */*.pyc
+*.pyc
+*/libcirc/stabilizer/*.pyc
+*/libcirc/compile/*.pyc
+*/libcirc/sample

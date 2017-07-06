@@ -22,4 +22,3 @@ mpibackendblas:
 	$(C) $(LFLAGS) -c libcirc/innerprod.c -o innerprod.o $(CFLAGS)
 	$(C) $(LFLAGS) -D BLAS -c libcirc/probability.c -o probability.o $(CFLAGS)
 	$(C) $(LFLAGS) matrix.o comms.o stabilizer.o stateprep.o innerprod.o probability.o -o libcirc/mpibackend $(CFLAGS) $(BFLAGS)
-	-@rm *.o 2>/dev/null

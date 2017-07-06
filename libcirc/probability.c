@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
 void master(int argc, char* argv[]) {
     // print mode, used for IO debugging. 
     // For algorithm related output use verbose
-    int print = 0;
+    int print = 1;
     if (print) printf("C backend print mode is on.\n");
 
     /************* Determine data source: file or stdin *************/
