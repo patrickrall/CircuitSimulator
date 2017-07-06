@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
 void master(int argc, char* argv[]) {
     // print mode, used for IO debugging. 
     // For algorithm related output use verbose
-    int print = 1;
+    int print = 0;
     if (print) printf("C backend print mode is on.\n");
 
     /************* Determine data source: file or stdin *************/
@@ -151,7 +151,6 @@ void master(int argc, char* argv[]) {
     }
 
     if (exact) {
-        printf("Samples:%d, terms:%f\n", samples*bins*2, (pow(2,(t+1)/2) - 1) );
         if (samples*bins*2 > (pow(2,(t+1)/2) - 1)) {
             noapprox = 1;
             if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
