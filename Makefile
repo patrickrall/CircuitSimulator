@@ -1,7 +1,3 @@
-C=mpicc
-CFLAGS=-lgsl -lgslcblas -lm -std=gnu99 -g -W -Wall
-LDFLAGS=-I/usr/include -L/usr/lib 
-
 mpibackend:
 	$(C) $(LDFLAGS) -c libcirc/utils/comms.c -o comms.o $(CFLAGS)
 	$(C) $(LDFLAGS) -c libcirc/stabilizer/stabilizer.c -o stabilizer.o $(CFLAGS)
@@ -10,3 +6,4 @@ mpibackend:
 	$(C) $(LDFLAGS) -c libcirc/probability.c -o probability.o $(CFLAGS)
 	$(C) $(LDFLAGS) comms.o stabilizer.o stateprep.o innerprod.o probability.o -o libcirc/mpibackend $(CFLAGS)
 	-@rm *.o 2>/dev/null
+
