@@ -2,7 +2,7 @@
 #include "stabilizer/stabilizer.h"
 
 /**************************** binrep *******************************/
-char *binrep (unsigned int val, char *buff, int sz) {
+char *binrep(unsigned int val, char *buff, int sz) {
     char *pbuff = buff;
 
     /* Must be able to store one character at least. */
@@ -44,19 +44,18 @@ struct StabilizerState* prepH(int i, int t) {
     // set J matrix
 	for(int j=0;j<size;j++){
 		if(bits[j] == '0' && !(t%2 && j==size-1)){
-			gsl_matrix_set(phi->J, j*2+1, j*2, 4);
-			gsl_matrix_set(phi->J, j*2, j*2+1, 4);
+			BitMatrixSet(phi->J, j*2+1, j*2, 1);
+			BitMatrixSet(phi->J, j*2, j*2+1, 1);
 		}
 	}
 
-	gsl_vector *tempVector;
-	tempVector = gsl_vector_alloc(t);
+	struct BitVector* tempVector = newBitVector(t);
 	
 	for(int j=0;j<size;j++){
-		gsl_vector_set_zero(tempVector);
+		BitVectorSetZero(tempVector);
 		
 		if(t%2 && j==size-1){
-			gsl_vector_set(tempVector, t-1, 1);
+			BitVectorSet(tempVector, t-1, 1);
 		
             // bit = 0 is |+>
             // bit = 1 is |0>
@@ -70,59 +69,52 @@ struct StabilizerState* prepH(int i, int t) {
 	    // bit = 1 corresponds to |00> + |11> state
         // bit = 0 corresponds to |00> + |01> + |10> - |11>
 		if(bits[j] == '1'){
-            gsl_vector_set(tempVector, j*2+1, 1);
-            gsl_vector_set(tempVector, j*2, 1);
+            BitVectorSet(tempVector, j*2+1, 1);
+            BitVectorSet(tempVector, j*2, 1);
         
             shrink(phi, tempVector, 0, 0); // only 00 and 11 have inner prod 0 with 11
 		}
 	}
 
-    gsl_vector_free(tempVector);
+    BitVectorFree(tempVector);
     return phi;
 }
 
 
 /**************************** prepL *******************************/
-struct StabilizerState* prepL(int i, int t, gsl_matrix* L) {
+struct StabilizerState* prepL(int i, int t, struct BitMatrix* L) {
     //compute bitstring by adding rows of l
-    int k = L->size1;
+    int k = L->rows;
     char buff[k+1];
 	char *Lbits = binrep(i,buff,k);
 	
-	gsl_vector *bitstring, *tempVector, *zeroVector;
-	bitstring = gsl_vector_alloc(t);
-	tempVector = gsl_vector_alloc(t);
-	zeroVector = gsl_vector_alloc(t);
-	gsl_vector_set_zero(bitstring);
-	gsl_vector_set_zero(zeroVector);
+	struct BitVector *bitstring = newBitVector(t);
 
 	int j=0;
 	while(Lbits[j] != '\0'){
 		if(Lbits[j] == '1'){
-			gsl_matrix_get_row(tempVector, L, j);
-			gsl_vector_add(bitstring, tempVector);
+			struct BitVector *tempVector = BitMatrixGetRow(L, j);
+			BitVectorXorSet(bitstring, tempVector);
+            BitVectorFree(tempVector);
 		}
 		j++;
 	}
-	for(j=0;j<t;j++){
-		gsl_vector_set(bitstring, j, mod(gsl_vector_get(bitstring, j), 2));
-	}
+
 
 	struct StabilizerState *phi = allocStabilizerState(t, t);
 	
 	//construct state using shrink
+	struct BitVector *tempVector = newBitVector(t);
 	for(int xtildeidx=0;xtildeidx<t;xtildeidx++){
-		gsl_vector_set_zero(tempVector);
-		gsl_vector_set(tempVector, xtildeidx, 1);
-		
-        if((int)gsl_vector_get(bitstring, xtildeidx) == 0){
+        if(BitVectorGet(bitstring, xtildeidx) == 0){
+            BitVectorSetZero(tempVector);
+		    BitVectorSet(tempVector, xtildeidx, 1);
 			shrink(phi, tempVector, 0, 0); // |0> at index, inner prod with 1 is 0
 		}
         // |+> at index -> do nothing
 	}
 	
-    gsl_vector_free(bitstring);
-    gsl_vector_free(tempVector);
-    gsl_vector_free(zeroVector);
+    BitVectorFree(bitstring);
+    BitVectorFree(tempVector);
     return phi;
 }

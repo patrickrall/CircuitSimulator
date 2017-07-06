@@ -9,14 +9,12 @@ from multiprocessing import Pool, cpu_count
 from libcirc.stabilizer.stabilizer import StabilizerState
 from libcirc.stateprep import prepH, prepL
 
+
 # Median of means calculation can be done via Chebychev and Chernoff bounds.
 # http://www.cs.utexas.edu/~ecprice/courses/randomized/notes/lec5.pdf
 # If sampledProjector has error worse than e with probability p,
 # then multiSampledProjector has error worse than e with probability
 # less than delta = exp(-2m(1/2 - p)^2) where m is the number of bins.
-#
-# Can only parallelize over means, so (means) must be larger
-# than the number of cores.
 #
 # Since L is proportional to 1/p, best total number of samples m*L is minimized
 # at the minimum of m/p proportional to p^(-1) * (1/2 - p)^(-2) which is p = 1/6.
@@ -140,40 +138,48 @@ def exactProjector(P, L, norm, procs=1):
         except NotImplementedError:
             procs = 1
 
-    queries = [(P, L, i) for i in range(0, 2**size)]
+    queries = [(P, L, l) for l in range(0, 2**(size-1) * (2**size + 1))]
     if procs > 1:
         pool = Pool(procs)
-        total = sum(pool.map(exactThread, queries))
+        total = sum(pool.map(exactProjectorWork, queries))
         pool.close()
     else:
-        total = sum(map(exactThread, queries))
+        total = sum(map(exactProjectorWork, queries))
     return np.abs(total)
 
 
-def exactThread(args):
-    (P, L, i) = args
+def exactProjectorWork(args):
+    (P, L, l) = args
     (phases, xs, zs) = P
 
     t = len(xs[0])
     if L is None: size = int(np.ceil(t/2))
     else: size = len(L)
 
-    total = 0
+    chi = 2**size
+
+    i = 0
+    while l >= chi - i:
+        l -= chi - i
+        i += 1
+    j = l + i
 
     if L is None: theta = prepH(i, t)
     else: theta = prepL(i, t, L)
 
     projfactor = 1
     for g in range(len(phases)):
-        res = theta.measurePauli(phases[g], zs[g], xs[g])
+        res, status = theta.measurePauli(phases[g], zs[g], xs[g], give_status=True)
+
         projfactor *= res
+
         if res == 0: return 0  # theta annihilated by P
 
-    for j in range(0, 2**size):
-        if L is None: phi = prepH(j, t)
-        else: phi = prepL(j, t, L)
+    if L is None: phi = prepH(j, t)
+    else: phi = prepL(j, t, L)
 
-        inner = StabilizerState.innerProduct(theta, phi)
-
-        total += inner * projfactor
-    return total
+    inner = StabilizerState.innerProduct(theta, phi)
+    if i == j:
+        return inner * projfactor
+    else:
+        return 2 * np.real(inner) * projfactor

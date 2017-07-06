@@ -1,0 +1,531 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 41.68      5.43     5.43 1482771591     0.00     0.00  BitMatrixGet
+ 22.05      8.30     2.87 852523908     0.00     0.00  BitVectorSet
+ 16.59     10.46     2.16 21455645     0.00     0.00  BitVectorInner
+  8.91     11.62     1.16 21299302     0.00     0.00  BitMatrixGetCol
+  2.46     11.94     0.32     6656     0.00     0.00  updateDJ
+  2.30     12.24     0.30 22012692     0.00     0.00  newBitVector
+  2.07     12.51     0.27 15672087     0.00     0.00  BitVectorGet
+  1.23     12.67     0.16   710649     0.00     0.00  BitMatrixGetRow
+  1.08     12.81     0.14    13312     0.00     0.00  BitMatrixMulMatrix
+  0.58     12.88     0.08                             BitMatrixPrint
+  0.23     12.91     0.03    26759     0.00     0.00  newBitMatrixZero
+  0.15     12.93     0.02  7374311     0.00     0.00  getD
+  0.15     12.95     0.02     6656     0.00     0.00  BitMatrixTranspose
+  0.08     12.96     0.01 22011704     0.00     0.00  BitVectorFree
+  0.08     12.97     0.01   741076     0.00     0.00  BitMatrixSet
+  0.08     12.98     0.01    13618     0.00     0.00  BitMatrixCopy
+  0.08     12.99     0.01        1     0.01    12.92  testFileInnerProduct
+  0.08     13.00     0.01                             BitVectorPrint
+  0.08     13.01     0.01                             BitVectorSetZero
+  0.08     13.02     0.01                             ComplexMagSquare
+  0.00     13.02     0.00   272360     0.00     0.00  setD
+  0.00     13.02     0.00    26759     0.00     0.00  BitMatrixFree
+  0.00     13.02     0.00    12005     0.00     0.00  BitMatrixSetRow
+  0.00     13.02     0.00    11797     0.00     0.00  BitVectorXorSet
+  0.00     13.02     0.00     6656     0.00     0.00  BitMatrixMulMatrixLeft
+  0.00     13.02     0.00     6656     0.00     0.00  BitMatrixMulMatrixRight
+  0.00     13.02     0.00     6536     0.00     0.00  newBitMatrixIdentity
+  0.00     13.02     0.00     4247     0.00     0.00  BitMatrixFlip
+  0.00     13.02     0.00     3740     0.00     0.00  BitVectorFlip
+  0.00     13.02     0.00     2964     0.00     0.00  BitMatrixSwapRows
+  0.00     13.02     0.00     1039     0.00     0.00  BitMatrixMulVector
+  0.00     13.02     0.00     1039     0.00     0.00  updateQD
+  0.00     13.02     0.00      988     0.00     0.01  shrink
+  0.00     13.02     0.00      681     0.00     0.00  BitMatrixSetZero
+  0.00     13.02     0.00      510     0.00     0.00  readArray
+  0.00     13.02     0.00      477     0.00     0.00  BitMatrixSetIdentity
+  0.00     13.02     0.00      459     0.00     0.00  readInt
+  0.00     13.02     0.00      357     0.00     0.00  BitVectorCopy
+  0.00     13.02     0.00      263     0.00     0.00  Gamma
+  0.00     13.02     0.00      204     0.00     0.00  allocStabilizerState
+  0.00     13.02     0.00      204     0.00     0.00  freeStabilizerState
+  0.00     13.02     0.00      133     0.00     0.00  partialGamma
+  0.00     13.02     0.00      102     0.00     0.00  BitMatrixSetCol
+  0.00     13.02     0.00      102     0.00     0.00  Wsigma
+  0.00     13.02     0.00      102     0.00     0.00  deepCopyState
+  0.00     13.02     0.00       51     0.00     0.00  BitMatrixSwapCols
+  0.00     13.02     0.00       51     0.00     0.00  BitMatrixXorSet
+  0.00     13.02     0.00       51     0.00     0.02  exponentialSumExact
+  0.00     13.02     0.00       51     0.00     0.25  innerProductExact
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2017 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 2 byte(s) for 0.08% of 13.02 seconds
+
+index % time    self  children    called     name
+                0.01   12.91       1/1           main [2]
+[1]     99.2    0.01   12.91       1         testFileInnerProduct [1]
+                0.00   12.91      51/51          innerProductExact [3]
+                0.00    0.00   82569/741076      BitMatrixSet [24]
+                0.00    0.00     102/204         allocStabilizerState [32]
+                0.00    0.00    4080/272360      setD [30]
+                0.00    0.00    4080/852523908     BitVectorSet [11]
+                0.00    0.00     102/204         freeStabilizerState [38]
+                0.00    0.00     510/510         readArray [45]
+                0.00    0.00     459/459         readInt [46]
+                0.00    0.00     204/681         BitMatrixSetZero [44]
+-----------------------------------------------
+                                                 <spontaneous>
+[2]     99.2    0.00   12.92                 main [2]
+                0.01   12.91       1/1           testFileInnerProduct [1]
+-----------------------------------------------
+                0.00   12.91      51/51          testFileInnerProduct [1]
+[3]     99.1    0.00   12.91      51         innerProductExact [3]
+                0.00   11.76     988/988         shrink [5]
+                0.00    1.02      51/51          exponentialSumExact [13]
+                0.00    0.10      51/6656        updateDJ [4]
+                0.02    0.00   84628/710649      BitMatrixGetRow [17]
+                0.01    0.00   84628/21455645     BitVectorInner [12]
+                0.00    0.00      51/1039        updateQD [19]
+                0.00    0.00   81600/741076      BitMatrixSet [24]
+                0.00    0.00     102/204         allocStabilizerState [32]
+                0.00    0.00     102/102         deepCopyState [34]
+                0.00    0.00    4080/7374311     getD [15]
+                0.00    0.00      51/26759       newBitMatrixZero [21]
+                0.00    0.00   84730/22011704     BitVectorFree [25]
+                0.00    0.00    2040/272360      setD [30]
+                0.00    0.00    2040/852523908     BitVectorSet [11]
+                0.00    0.00     102/22012692     newBitVector [14]
+                0.00    0.00     102/204         freeStabilizerState [38]
+                0.00    0.00      51/357         BitVectorCopy [47]
+                0.00    0.00      51/11797       BitVectorXorSet [41]
+                0.00    0.00      51/26759       BitMatrixFree [39]
+                0.00    0.00      51/51          BitMatrixXorSet [50]
+-----------------------------------------------
+                0.00    0.10      51/6656        innerProductExact [3]
+                0.03    0.99     528/6656        exponentialSumExact [13]
+                0.29   11.41    6077/6656        shrink [5]
+[4]     98.4    0.32   12.50    6656         updateDJ [4]
+                0.00    4.94    6656/6656        BitMatrixMulMatrixLeft [9]
+                0.00    4.94    6656/6656        BitMatrixMulMatrixRight [10]
+                2.31    0.00 630339760/1482771591     BitMatrixGet [8]
+                0.02    0.25 7338160/7374311     getD [15]
+                0.02    0.01    6656/6656        BitMatrixTranspose [20]
+                0.00    0.00  266240/272360      setD [30]
+                0.00    0.00    6656/26759       BitMatrixFree [39]
+                0.00    0.00    3740/3740        BitVectorFlip [43]
+-----------------------------------------------
+                0.00   11.76     988/988         innerProductExact [3]
+[5]     90.3    0.00   11.76     988         shrink [5]
+                0.29   11.41    6077/6656        updateDJ [4]
+                0.00    0.03     988/1039        updateQD [19]
+                0.01    0.00   46053/710649      BitMatrixGetRow [17]
+                0.00    0.01    6077/6536        newBitMatrixIdentity [23]
+                0.00    0.00   30257/21455645     BitVectorInner [12]
+                0.00    0.00    2964/2964        BitMatrixSwapRows [31]
+                0.00    0.00    5089/741076      BitMatrixSet [24]
+                0.00    0.00   46053/22011704     BitVectorFree [25]
+                0.00    0.00     988/22012692     newBitVector [14]
+                0.00    0.00     988/852523908     BitVectorSet [11]
+                0.00    0.00   10707/11797       BitVectorXorSet [41]
+                0.00    0.00    6077/12005       BitMatrixSetRow [40]
+                0.00    0.00    6077/26759       BitMatrixFree [39]
+-----------------------------------------------
+                0.07    4.87    6656/13312       BitMatrixMulMatrixLeft [9]
+                0.07    4.87    6656/13312       BitMatrixMulMatrixRight [10]
+[6]     75.8    0.14    9.73   13312         BitMatrixMulMatrix [6]
+                1.16    6.28 21299200/21299302     BitMatrixGetCol [7]
+                2.14    0.00 21299200/21455645     BitVectorInner [12]
+                0.12    0.01  532480/710649      BitMatrixGetRow [17]
+                0.01    0.00   13312/26759       newBitMatrixZero [21]
+                0.01    0.00 21831680/22011704     BitVectorFree [25]
+-----------------------------------------------
+                0.00    0.00     102/21299302     BitMatrixSwapCols [35]
+                1.16    6.28 21299200/21299302     BitMatrixMulMatrix [6]
+[7]     57.1    1.16    6.28 21299302         BitMatrixGetCol [7]
+                3.12    0.00 851972080/1482771591     BitMatrixGet [8]
+                2.87    0.00 851972080/852523908     BitVectorSet [11]
+                0.29    0.00 21299302/22012692     newBitVector [14]
+-----------------------------------------------
+                0.00    0.00     647/1482771591     Wsigma [37]
+                0.00    0.00   12532/1482771591     exponentialSumExact [13]
+                0.00    0.00  446572/1482771591     updateQD [19]
+                2.31    0.00 630339760/1482771591     updateDJ [4]
+                3.12    0.00 851972080/1482771591     BitMatrixGetCol [7]
+[8]     41.7    5.43    0.00 1482771591         BitMatrixGet [8]
+-----------------------------------------------
+                0.00    4.94    6656/6656        updateDJ [4]
+[9]     37.9    0.00    4.94    6656         BitMatrixMulMatrixLeft [9]
+                0.07    4.87    6656/13312       BitMatrixMulMatrix [6]
+                0.00    0.00    6656/13618       BitMatrixCopy [26]
+                0.00    0.00    6656/26759       BitMatrixFree [39]
+-----------------------------------------------
+                0.00    4.94    6656/6656        updateDJ [4]
+[10]    37.9    0.00    4.94    6656         BitMatrixMulMatrixRight [10]
+                0.07    4.87    6656/13312       BitMatrixMulMatrix [6]
+                0.00    0.00    6656/13618       BitMatrixCopy [26]
+                0.00    0.00    6656/26759       BitMatrixFree [39]
+-----------------------------------------------
+                0.00    0.00     988/852523908     shrink [5]
+                0.00    0.00    2040/852523908     innerProductExact [3]
+                0.00    0.00    4080/852523908     testFileInnerProduct [1]
+                0.00    0.00  544720/852523908     setD [30]
+                2.87    0.00 851972080/852523908     BitMatrixGetCol [7]
+[11]    22.0    2.87    0.00 852523908         BitVectorSet [11]
+-----------------------------------------------
+                0.00    0.00   30257/21455645     shrink [5]
+                0.00    0.00   41560/21455645     BitMatrixMulVector [22]
+                0.01    0.00   84628/21455645     innerProductExact [3]
+                2.14    0.00 21299200/21455645     BitMatrixMulMatrix [6]
+[12]    16.6    2.16    0.00 21455645         BitVectorInner [12]
+-----------------------------------------------
+                0.00    1.02      51/51          innerProductExact [3]
+[13]     7.8    0.00    1.02      51         exponentialSumExact [13]
+                0.03    0.99     528/6656        updateDJ [4]
+                0.00    0.00     477/477         BitMatrixSetIdentity [33]
+                0.00    0.00      51/51          BitMatrixSwapCols [35]
+                0.00    0.00      51/6536        newBitMatrixIdentity [23]
+                0.00    0.00   12532/1482771591     BitMatrixGet [8]
+                0.00    0.00    1001/7374311     getD [15]
+                0.00    0.00     102/102         Wsigma [37]
+                0.00    0.00    4247/4247        BitMatrixFlip [42]
+                0.00    0.00      51/26759       BitMatrixFree [39]
+                0.00    0.00      12/133         partialGamma [49]
+-----------------------------------------------
+                0.00    0.00     102/22012692     innerProductExact [3]
+                0.00    0.00     612/22012692     allocStabilizerState [32]
+                0.00    0.00     988/22012692     shrink [5]
+                0.00    0.00    1039/22012692     BitMatrixMulVector [22]
+                0.01    0.00  710649/22012692     BitMatrixGetRow [17]
+                0.29    0.00 21299302/22012692     BitMatrixGetCol [7]
+[14]     2.3    0.30    0.00 22012692         newBitVector [14]
+-----------------------------------------------
+                0.00    0.00     749/7374311     Wsigma [37]
+                0.00    0.00    1001/7374311     exponentialSumExact [13]
+                0.00    0.00    4080/7374311     innerProductExact [3]
+                0.00    0.00   30321/7374311     updateQD [19]
+                0.02    0.25 7338160/7374311     updateDJ [4]
+[15]     2.1    0.02    0.25 7374311         getD [15]
+                0.25    0.00 14748622/15672087     BitVectorGet [16]
+-----------------------------------------------
+                0.02    0.00  923465/15672087     updateQD [19]
+                0.25    0.00 14748622/15672087     getD [15]
+[16]     2.1    0.27    0.00 15672087         BitVectorGet [16]
+-----------------------------------------------
+                0.00    0.00    5928/710649      BitMatrixSwapRows [31]
+                0.01    0.00   41560/710649      BitMatrixMulVector [22]
+                0.01    0.00   46053/710649      shrink [5]
+                0.02    0.00   84628/710649      innerProductExact [3]
+                0.12    0.01  532480/710649      BitMatrixMulMatrix [6]
+[17]     1.3    0.16    0.01  710649         BitMatrixGetRow [17]
+                0.01    0.00  710649/22012692     newBitVector [14]
+-----------------------------------------------
+                                                 <spontaneous>
+[18]     0.6    0.08    0.00                 BitMatrixPrint [18]
+-----------------------------------------------
+                0.00    0.00      51/1039        innerProductExact [3]
+                0.00    0.03     988/1039        shrink [5]
+[19]     0.3    0.00    0.03    1039         updateQD [19]
+                0.02    0.00  923465/15672087     BitVectorGet [16]
+                0.00    0.01    1039/1039        BitMatrixMulVector [22]
+                0.00    0.00  446572/1482771591     BitMatrixGet [8]
+                0.00    0.00   30321/7374311     getD [15]
+                0.00    0.00    1039/22011704     BitVectorFree [25]
+                0.00    0.00    1039/11797       BitVectorXorSet [41]
+-----------------------------------------------
+                0.02    0.01    6656/6656        updateDJ [4]
+[20]     0.2    0.02    0.01    6656         BitMatrixTranspose [20]
+                0.01    0.00    6656/26759       newBitMatrixZero [21]
+                0.00    0.00  287218/741076      BitMatrixSet [24]
+-----------------------------------------------
+                0.00    0.00      51/26759       innerProductExact [3]
+                0.00    0.00     204/26759       allocStabilizerState [32]
+                0.01    0.00    6536/26759       newBitMatrixIdentity [23]
+                0.01    0.00    6656/26759       BitMatrixTranspose [20]
+                0.01    0.00   13312/26759       BitMatrixMulMatrix [6]
+[21]     0.2    0.03    0.00   26759         newBitMatrixZero [21]
+-----------------------------------------------
+                0.00    0.01    1039/1039        updateQD [19]
+[22]     0.1    0.00    0.01    1039         BitMatrixMulVector [22]
+                0.01    0.00   41560/710649      BitMatrixGetRow [17]
+                0.00    0.00   41560/21455645     BitVectorInner [12]
+                0.00    0.00   41560/22011704     BitVectorFree [25]
+                0.00    0.00    1039/22012692     newBitVector [14]
+-----------------------------------------------
+                0.00    0.00      51/6536        exponentialSumExact [13]
+                0.00    0.00     408/6536        allocStabilizerState [32]
+                0.00    0.01    6077/6536        shrink [5]
+[23]     0.1    0.00    0.01    6536         newBitMatrixIdentity [23]
+                0.01    0.00    6536/26759       newBitMatrixZero [21]
+                0.00    0.00  261440/741076      BitMatrixSet [24]
+-----------------------------------------------
+                0.00    0.00    4080/741076      BitMatrixSetCol [36]
+                0.00    0.00    5089/741076      shrink [5]
+                0.00    0.00   19080/741076      BitMatrixSetIdentity [33]
+                0.00    0.00   81600/741076      innerProductExact [3]
+                0.00    0.00   82569/741076      testFileInnerProduct [1]
+                0.00    0.00  261440/741076      newBitMatrixIdentity [23]
+                0.00    0.00  287218/741076      BitMatrixTranspose [20]
+[24]     0.1    0.01    0.00  741076         BitMatrixSet [24]
+-----------------------------------------------
+                0.00    0.00     102/22011704     BitMatrixSwapCols [35]
+                0.00    0.00     612/22011704     freeStabilizerState [38]
+                0.00    0.00    1039/22011704     updateQD [19]
+                0.00    0.00    5928/22011704     BitMatrixSwapRows [31]
+                0.00    0.00   41560/22011704     BitMatrixMulVector [22]
+                0.00    0.00   46053/22011704     shrink [5]
+                0.00    0.00   84730/22011704     innerProductExact [3]
+                0.01    0.00 21831680/22011704     BitMatrixMulMatrix [6]
+[25]     0.1    0.01    0.00 22011704         BitVectorFree [25]
+-----------------------------------------------
+                0.00    0.00     306/13618       deepCopyState [34]
+                0.00    0.00    6656/13618       BitMatrixMulMatrixLeft [9]
+                0.00    0.00    6656/13618       BitMatrixMulMatrixRight [10]
+[26]     0.1    0.01    0.00   13618         BitMatrixCopy [26]
+-----------------------------------------------
+                                                 <spontaneous>
+[27]     0.1    0.01    0.00                 BitVectorPrint [27]
+-----------------------------------------------
+                                                 <spontaneous>
+[28]     0.1    0.01    0.00                 BitVectorSetZero [28]
+-----------------------------------------------
+                                                 <spontaneous>
+[29]     0.1    0.01    0.00                 ComplexMagSquare [29]
+-----------------------------------------------
+                0.00    0.00    2040/272360      innerProductExact [3]
+                0.00    0.00    4080/272360      testFileInnerProduct [1]
+                0.00    0.00  266240/272360      updateDJ [4]
+[30]     0.0    0.00    0.00  272360         setD [30]
+                0.00    0.00  544720/852523908     BitVectorSet [11]
+-----------------------------------------------
+                0.00    0.00    2964/2964        shrink [5]
+[31]     0.0    0.00    0.00    2964         BitMatrixSwapRows [31]
+                0.00    0.00    5928/710649      BitMatrixGetRow [17]
+                0.00    0.00    5928/22011704     BitVectorFree [25]
+                0.00    0.00    5928/12005       BitMatrixSetRow [40]
+-----------------------------------------------
+                0.00    0.00     102/204         testFileInnerProduct [1]
+                0.00    0.00     102/204         innerProductExact [3]
+[32]     0.0    0.00    0.00     204         allocStabilizerState [32]
+                0.00    0.00     408/6536        newBitMatrixIdentity [23]
+                0.00    0.00     204/26759       newBitMatrixZero [21]
+                0.00    0.00     612/22012692     newBitVector [14]
+-----------------------------------------------
+                0.00    0.00     477/477         exponentialSumExact [13]
+[33]     0.0    0.00    0.00     477         BitMatrixSetIdentity [33]
+                0.00    0.00   19080/741076      BitMatrixSet [24]
+                0.00    0.00     477/681         BitMatrixSetZero [44]
+-----------------------------------------------
+                0.00    0.00     102/102         innerProductExact [3]
+[34]     0.0    0.00    0.00     102         deepCopyState [34]
+                0.00    0.00     306/13618       BitMatrixCopy [26]
+                0.00    0.00     306/357         BitVectorCopy [47]
+-----------------------------------------------
+                0.00    0.00      51/51          exponentialSumExact [13]
+[35]     0.0    0.00    0.00      51         BitMatrixSwapCols [35]
+                0.00    0.00     102/102         BitMatrixSetCol [36]
+                0.00    0.00     102/21299302     BitMatrixGetCol [7]
+                0.00    0.00     102/22011704     BitVectorFree [25]
+-----------------------------------------------
+                0.00    0.00     102/102         BitMatrixSwapCols [35]
+[36]     0.0    0.00    0.00     102         BitMatrixSetCol [36]
+                0.00    0.00    4080/741076      BitMatrixSet [24]
+-----------------------------------------------
+                0.00    0.00     102/102         exponentialSumExact [13]
+[37]     0.0    0.00    0.00     102         Wsigma [37]
+                0.00    0.00     749/7374311     getD [15]
+                0.00    0.00     647/1482771591     BitMatrixGet [8]
+                0.00    0.00     263/263         Gamma [48]
+                0.00    0.00     121/133         partialGamma [49]
+-----------------------------------------------
+                0.00    0.00     102/204         testFileInnerProduct [1]
+                0.00    0.00     102/204         innerProductExact [3]
+[38]     0.0    0.00    0.00     204         freeStabilizerState [38]
+                0.00    0.00     612/22011704     BitVectorFree [25]
+                0.00    0.00     612/26759       BitMatrixFree [39]
+-----------------------------------------------
+                0.00    0.00      51/26759       exponentialSumExact [13]
+                0.00    0.00      51/26759       innerProductExact [3]
+                0.00    0.00     612/26759       freeStabilizerState [38]
+                0.00    0.00    6077/26759       shrink [5]
+                0.00    0.00    6656/26759       updateDJ [4]
+                0.00    0.00    6656/26759       BitMatrixMulMatrixLeft [9]
+                0.00    0.00    6656/26759       BitMatrixMulMatrixRight [10]
+[39]     0.0    0.00    0.00   26759         BitMatrixFree [39]
+-----------------------------------------------
+                0.00    0.00    5928/12005       BitMatrixSwapRows [31]
+                0.00    0.00    6077/12005       shrink [5]
+[40]     0.0    0.00    0.00   12005         BitMatrixSetRow [40]
+-----------------------------------------------
+                0.00    0.00      51/11797       innerProductExact [3]
+                0.00    0.00    1039/11797       updateQD [19]
+                0.00    0.00   10707/11797       shrink [5]
+[41]     0.0    0.00    0.00   11797         BitVectorXorSet [41]
+-----------------------------------------------
+                0.00    0.00    4247/4247        exponentialSumExact [13]
+[42]     0.0    0.00    0.00    4247         BitMatrixFlip [42]
+-----------------------------------------------
+                0.00    0.00    3740/3740        updateDJ [4]
+[43]     0.0    0.00    0.00    3740         BitVectorFlip [43]
+-----------------------------------------------
+                0.00    0.00     204/681         testFileInnerProduct [1]
+                0.00    0.00     477/681         BitMatrixSetIdentity [33]
+[44]     0.0    0.00    0.00     681         BitMatrixSetZero [44]
+-----------------------------------------------
+                0.00    0.00     510/510         testFileInnerProduct [1]
+[45]     0.0    0.00    0.00     510         readArray [45]
+-----------------------------------------------
+                0.00    0.00     459/459         testFileInnerProduct [1]
+[46]     0.0    0.00    0.00     459         readInt [46]
+-----------------------------------------------
+                0.00    0.00      51/357         innerProductExact [3]
+                0.00    0.00     306/357         deepCopyState [34]
+[47]     0.0    0.00    0.00     357         BitVectorCopy [47]
+-----------------------------------------------
+                0.00    0.00     263/263         Wsigma [37]
+[48]     0.0    0.00    0.00     263         Gamma [48]
+-----------------------------------------------
+                0.00    0.00      12/133         exponentialSumExact [13]
+                0.00    0.00     121/133         Wsigma [37]
+[49]     0.0    0.00    0.00     133         partialGamma [49]
+-----------------------------------------------
+                0.00    0.00      51/51          innerProductExact [3]
+[50]     0.0    0.00    0.00      51         BitMatrixXorSet [50]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2017 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+  [26] BitMatrixCopy          [31] BitMatrixSwapRows      [13] exponentialSumExact
+  [42] BitMatrixFlip          [20] BitMatrixTranspose     [38] freeStabilizerState
+  [39] BitMatrixFree          [50] BitMatrixXorSet        [15] getD
+   [8] BitMatrixGet           [47] BitVectorCopy           [3] innerProductExact
+   [7] BitMatrixGetCol        [43] BitVectorFlip          [23] newBitMatrixIdentity
+  [17] BitMatrixGetRow        [25] BitVectorFree          [21] newBitMatrixZero
+   [6] BitMatrixMulMatrix     [16] BitVectorGet           [14] newBitVector
+   [9] BitMatrixMulMatrixLeft [12] BitVectorInner         [49] partialGamma
+  [10] BitMatrixMulMatrixRight [27] BitVectorPrint        [45] readArray
+  [22] BitMatrixMulVector     [11] BitVectorSet           [46] readInt
+  [18] BitMatrixPrint         [28] BitVectorSetZero       [30] setD
+  [24] BitMatrixSet           [41] BitVectorXorSet         [5] shrink
+  [36] BitMatrixSetCol        [29] ComplexMagSquare        [1] testFileInnerProduct
+  [33] BitMatrixSetIdentity   [48] Gamma                   [4] updateDJ
+  [40] BitMatrixSetRow        [37] Wsigma                 [19] updateQD
+  [44] BitMatrixSetZero       [32] allocStabilizerState
+  [35] BitMatrixSwapCols      [34] deepCopyState

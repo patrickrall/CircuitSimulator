@@ -58,11 +58,14 @@ approximation incurs a multiplicative error e:
 e is related to the number of samples and a failure probability p_f
 via the equation samples * p_f * e^2 = 1.
 
+[-nosampling]
+Calculate || P |H^t> ||^2 exactly. Squares the runtime.
+
 [samples=1e4]
 Number of samples in calculating || P |H^t> ||^2 for projectors P.
 The default value 1e4 gives an error < 0.01 with 95% probability.
 
-[sampleerror=?]
+[error=?]
 Auto-pick the number of samples that achieve the given sampleerror
 with probability 95% or greater. Overrides samples option.
 
@@ -97,13 +100,6 @@ and you might need to backslash escape them depending on your shell.
 Number of parallel processes. If unspecified the application will
 auto-pick using python or mpi depending on which backend is in use.
 
-[-stateParallel]
-Parallelize over state decomposition rather than samples. Creates
-more synchronization overhead than sample parallelization. Use if:
-    - you have more parallel processes than samples, or
-    - you have so few processes you don't care about overhead, or
-    - you want a progress bar.
-
 [file=?]
 Instead of executing the c backend, write to a file that the c
 backend can read out of instead. Does not actually calculate anything.
@@ -127,7 +123,7 @@ probability queries like "_01". We cannot use the L decomposition
 because using |L> incurs a constant error, rather than a multiplicative
 error: |P_out - P_actual| < sqrt(fidbound).
 
-[-exact]
+[-exactstate]
 Pass this option to always use an exact decomposition with scaling 2^(t/2).
 This is only makes a difference with sampling queries like "_0M", where
 an |L> decomposition would be used otherwise.

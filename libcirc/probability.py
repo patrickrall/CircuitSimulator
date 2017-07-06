@@ -9,6 +9,7 @@ import libcirc.compile.projectors as projectors
 import os
 from subprocess import PIPE, Popen
 
+
 # calculate probability that a compiled circuit yields a measurement
 # circ is a compiled quantum circuit.
 #
@@ -27,7 +28,7 @@ from subprocess import PIPE, Popen
 #         Sampling method specification parameters.
 #         Calculate inner product exactly, or approximately by averaging samples
 #         from a probability distribution? How many samples? Use median of means?
-#     "noapprox": False,  # Don't randomize at all. Square of the runtime of approximate alg.
+#     "noapprox": False,  # Don't sample, and calculate inner product directly.
 #     "samples": 2000,    # Mean of 2000 samples gives mult. error 0.1 with 95% probability.
 #     "bins": 1,          # Number of groups of samples over which to take the median.
 #         Instead of manually setting samples and bins, can also auto-pick. Changing
@@ -86,34 +87,7 @@ def probability(circ, measure, config={}):
 
     # get projectors
     G, H, n, t = projectors.projectors(circ, measure, verbose=verbose,
-            x=config.get("x"), y=config.get("y"))
-
-    # configure sampling
-    if not config.get("noapprox"):
-        if not config.get("samples"): config["samples"] = 2000
-        if not config.get("bins"): config["bins"] = 1
-        if not config.get("error"): config["error"] = 0.1
-        if not config.get("failprob"): config["failprob"] = 0.05
-
-        if config.get("error") is not 0.1 or config.get("failprob") is not 0.05:
-            # auto-pick samples and bins.
-            chi = (2**t - 1)/(2**t + 1)
-            if config.get("failprob") < 0.0076:  # median of means worth it
-                config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
-                config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
-            else:  # just take the mean: L = chi/(p * e^2)
-                config["samples"] = int(np.ceil(chi * config.get("error")**(-2)
-                    * config.get("failprob")**(-1)))
-                config["bins"] = 1
-
-            if not quiet:
-                print("Autopicking median of %d bins with %d samples per bin."
-                        % (config["bins"], config["samples"]))
-                print("Ensure that the number of parallel cores is greater than %d."
-                        % config["samples"])
-
-    if verbose:
-        print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
+                                       x=config.get("x"), y=config.get("y"))
 
     # truncate projectors
     Gprime, u = projectors.truncate(n, G)
@@ -174,6 +148,33 @@ def probability(circ, measure, config={}):
             if not quiet: print("Reverting to python implementation")
             config["python"] = True
 
+    # configure sampling
+    if not config.get("noapprox"):
+        if not config.get("samples"): config["samples"] = 2000
+        if not config.get("bins"): config["bins"] = 1
+        if not config.get("error"): config["error"] = 0.2
+        if not config.get("failprob"): config["failprob"] = 0.05
+
+        if config.get("error") is not 0.2 or config.get("failprob") is not 0.05:
+            # auto-pick samples and bins.
+            chi = (2**t - 1)/(2**t + 1)
+            if config.get("failprob") < 0.0076:  # median of means worth it
+                config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
+                config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
+            else:  # just take the mean: L = chi/(p * e^2)
+                config["samples"] = int(np.ceil(chi * config.get("error")**(-2) *
+                                                config.get("failprob")**(-1)))
+                config["bins"] = 1
+
+            if not quiet:
+                print("Autopicking median of %d bins with %d samples per bin."
+                      % (config["bins"], config["samples"]))
+                print("Ensure that the number of parallel cores is less than %d."
+                      % config["samples"])
+
+        if verbose:
+            print("Evaluating median of %d bins with %d samples per bin." % (config["bins"], config["samples"]))
+
     # ------------------------------------ Python backend ------------------------------------
     if config.get("python"):
         # calculate |L> ~= |H>
@@ -186,14 +187,23 @@ def probability(circ, measure, config={}):
             if L is None: print("Using exact decomposition of |H^t>: 2^%d" % np.ceil(t/2))
             else: print("Stabilizer rank of |L>: 2^%d" % len(L))
 
+        if L is None:
+            if config.get("samples")*config.get("bins")*2 > (2**np.ceil(t/2) - 1):
+                config["noapprox"] = True
+                if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
+        else:
+            if config.get("samples")*config.get("bins")*2 > (2**len(L) - 1):
+                config.get["noapprox"] = True
+                if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
+
         if config.get("noapprox"):
             numerator = exactProjector(Gprime, L, norm, procs=config.get("procs"))
             denominator = exactProjector(Hprime, L, norm, procs=config.get("procs"))
         else:
             numerator = multiSampledProjector(Gprime, L, norm, samples=config.get("samples"),
-                    bins=config.get("bins"), procs=config.get("procs"))
+                                              bins=config.get("bins"), procs=config.get("procs"))
             denominator = multiSampledProjector(Hprime, L, norm, samples=config.get("samples"),
-                    bins=config.get("bins"), procs=config.get("procs"))
+                                                bins=config.get("bins"), procs=config.get("procs"))
 
     else:
         # --------------------------------------- C backend --------------------------------------
@@ -277,12 +287,12 @@ def probability(circ, measure, config={}):
             if not line:
                 break
 
-            if ("Numerator:" in line or "Denominator:" in line):
-                if not quiet:
-                    sys.stdout.write(line + "\r")
-                    sys.stdout.write("\033[K")
-            else:
-                out.append(line)
+            out.append(line)
+
+            try:
+                float(line)
+            except:
+                print(line)
 
         success = True
         try:
@@ -292,20 +302,9 @@ def probability(circ, measure, config={}):
             # these are errors, not warnings, so they are not silenced by quiet
 
             print("C code encountered error. Aborting.")
-            if len(out) > 0:
-                print("Begin C code output:")
-                for line in out:
-                    print(line)
-                print("End C code output.")
-            else:
-                print("C code gave no output.")
             success = False
 
         if not success: raise RuntimeError
-
-        # print C code output. Should respect quiet flag.
-        for line in out[:-2]:
-            print(line)
 
     # ------------------ end backend-dependent code ------------------
 
@@ -346,7 +345,7 @@ def decompose(t, config):
             raise ValueError("Need to specify either k or fidbound, or set exact=True to determine sampling method.")
         # pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
         k = np.ceil(1 - 2*t*np.log2(v) - np.log2(config.get("fidbound")))
-        if verbose: print("Autopicking k = %d." % k)
+        if verbose: print("Autopicking k = %d to achieve delta = %f." % (k, config.get("fidbound")))
     k = int(k)
 
     # can achieve k = t/2 by pairs of stabilizer states
@@ -409,12 +408,12 @@ def decompose(t, config):
             innerProd = 2**k * v**(2*t) / Z_L
             if forceK:
                 # quiet can't be set for this
-                print("Inner product <H^t|L>: %f" % innerProd)
+                print("delta = 1 - <H^t|L>: %f" % 1 - innerProd)
                 break
             elif innerProd < 1-config.get("fidbound"):
-                if not quiet: print("Inner product <H^t|L>: %f - Not good enough!" % innerProd)
+                if not quiet: print("delta = 1 - <H^t|L>: %f - Not good enough!" % 1 - innerProd)
             else:
-                if not quiet: print("Inner product <H^t|L>: %f" % innerProd)
+                if not quiet: print("delta = 1 - <H^t|L>: %f" % 1 - innerProd)
         else: break
 
     if config.get("fidelity"):

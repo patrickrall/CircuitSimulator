@@ -63,7 +63,7 @@ struct BitVector* newBitVector(unsigned int size) {
     unsigned int bytes = (size + 7)/8; // round up
 
     vec->data = (unsigned char*)malloc(bytes);
-    for (int i = 0; i < bytes; i++) {
+    for (unsigned int i = 0; i < bytes; i++) {
         vec->data[i] = 0x00;
     }
 
@@ -76,16 +76,32 @@ struct BitVector* newBitVectorRandom(unsigned int size) {
 
     struct BitVector* vec = (struct BitVector*)malloc(sizeof(struct BitVector));
     vec->size = size;
-    
-    unsigned int bytes = (size + 7)/8; // round up
 
-    vec->data = (unsigned char*)malloc(bytes);
-    for (int i = 0; i < bytes; i++) {
-        vec->data[i] = rand() % 256;
-    }
+    BitVectorSetRandom(vec);
 
     return vec;
 }
+
+void BitVectorSetRandom(struct BitVector* vec) {
+    unsigned int bytes = (vec->size + 7)/8; // round up
+
+    vec->data = (unsigned char*)malloc(bytes);
+    for (unsigned int i = 0; i < bytes; i++) {
+        vec->data[i] = rand() % 256;
+    }
+}
+
+
+void BitVectorSetZero(struct BitVector* vec) {
+    unsigned int bytes = (vec->size + 7)/8; // round up
+
+    vec->data = (unsigned char*)malloc(bytes);
+    for (unsigned int i = 0; i < bytes; i++) {
+        vec->data[i] = 0x00;
+    }
+}
+
+
 
 
 void BitVectorFree(struct BitVector* vec) {
@@ -94,13 +110,13 @@ void BitVectorFree(struct BitVector* vec) {
 }
 
 
-// copy vec1 to vec2
+// copy vec2 to vec1
 void BitVectorCopy(struct BitVector* vec1, struct BitVector* vec2) {
     assert(vec1->size == vec2->size);
-    unsigned int bytes = (vec1->size + 7)/8; // round up
+    unsigned int bytes = (vec2->size + 7)/8; // round up
 
-    for (int i = 0; i < bytes; i++) {
-        vec2->data[i] = vec1->data[i];
+    for (unsigned int i = 0; i < bytes; i++) {
+        vec1->data[i] = vec2->data[i];
     }
 
 }
@@ -129,10 +145,30 @@ void BitVectorSet(struct BitVector* vec, unsigned int loc, unsigned int value) {
     }
 }
 
+void BitVectorFlip(struct BitVector* vec, unsigned int loc) {
+    assert(vec->size > loc);
+
+    unsigned int byte = loc/8;
+    unsigned int mask = 0x80;
+    mask >>= loc % 8;
+
+    vec->data[byte] ^= mask;
+}
+
+int BitVectorSame(struct BitVector* vec1, struct BitVector* vec2) {
+    assert(vec1->size == vec2->size);
+    unsigned int bytes = (vec2->size + 7)/8; // round up
+
+    for (unsigned int i = 0; i < bytes; i++) {
+        if (vec1->data[i] != vec2->data[i]) return 0;
+    }
+    return 1;
+}
+
 
 void BitVectorPrint(struct BitVector* vec) {
     printf("[");
-    for (int i = 0; i < vec->size; i++) {
+    for (unsigned int i = 0; i < vec->size; i++) {
         printf("%d", BitVectorGet(vec, i));
     } 
     printf("]\n");
@@ -157,7 +193,7 @@ unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2) {
 
     unsigned int extra = vec1->size - 8*bytes; 
     mask = 0x80;
-    for (int bit = 0; bit < extra; bit++) {
+    for (unsigned int bit = 0; bit < extra; bit++) {
         if ((vec1->data[byte] & mask) > 0 && (vec2->data[byte] & mask) > 0) {
             inner += 1;
         }
@@ -168,13 +204,13 @@ unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2) {
     return inner;
 }
 
- // vec2 <- vec1 ^ vec2
+ // vec1 <- vec1 ^ vec2
 void BitVectorXorSet(struct BitVector* vec1, struct BitVector* vec2) {
     assert(vec1->size == vec2->size);
     
     unsigned int bytes = (vec1->size + 7)/8; // round up
     for (unsigned int byte = 0; byte < bytes; byte++) {
-        vec2->data[byte] = vec1->data[byte] ^ vec2->data[byte];
+        vec1->data[byte] = vec1->data[byte] ^ vec2->data[byte];
     }
 }
 
@@ -201,7 +237,7 @@ struct BitMatrix* newBitMatrixZero(unsigned int rows, unsigned int cols) {
     unsigned int bytes = (rows*cols + 7)/8; // round up
 
     mat->data = (unsigned char*)malloc(bytes);
-    for (int i = 0; i < bytes; i++) {
+    for (unsigned int i = 0; i < bytes; i++) {
         mat->data[i] = 0x00;
     }
 
@@ -212,7 +248,7 @@ struct BitMatrix* newBitMatrixZero(unsigned int rows, unsigned int cols) {
 struct BitMatrix* newBitMatrixIdentity(unsigned int rows) {
     struct BitMatrix* mat = newBitMatrixZero(rows, rows);
 
-    for (int i = 0; i < rows; i++) {
+    for (unsigned int i = 0; i < rows; i++) {
         BitMatrixSet(mat, i, i, 1);
     }
 
@@ -231,7 +267,7 @@ struct BitMatrix* newBitMatrixRandom(unsigned int rows, unsigned int cols) {
     unsigned int bytes = (rows*cols + 7)/8; // round up
 
     mat->data = (unsigned char*)malloc(bytes);
-    for (int i = 0; i < bytes; i++) {
+    for (unsigned int i = 0; i < bytes; i++) {
         mat->data[i] = rand() % 256;
     }
 
@@ -250,24 +286,39 @@ void BitMatrixCopy(struct BitMatrix* mat1, struct BitMatrix* mat2) {
 
     unsigned int bytes = ((mat1->rows * mat1->cols) + 7)/8; // round up
 
-    for (int i = 0; i < bytes; i++) {
-        mat2->data[i] = mat1->data[i];
+    for (unsigned int i = 0; i < bytes; i++) {
+        mat1->data[i] = mat2->data[i];
     }
 }
 
 void BitMatrixSetZero(struct BitMatrix* mat) {
     unsigned int bytes = (mat->rows*mat->cols + 7)/8; // round up
-    for (int i = 0; i < bytes; i++) {
+    for (unsigned int i = 0; i < bytes; i++) {
         mat->data[i] = 0x00;
+    }
+}
+
+void BitMatrixSetRandom(struct BitMatrix* mat) {
+    unsigned int bytes = (mat->rows*mat->cols + 7)/8; // round up
+    for (unsigned int i = 0; i < bytes; i++) {
+        mat->data[i] = rand() % 256;
+    }
+}
+
+void BitMatrixSetIdentity(struct BitMatrix* mat) {
+    BitMatrixSetZero(mat); 
+    
+    for (unsigned int i = 0; i < mat->rows; i++) {
+        BitMatrixSet(mat, i, i, 1);
     }
 }
 
 void BitMatrixPrint(struct BitMatrix* mat) {
     printf("[");
-    for (int i = 0; i < mat->rows; i++) {
+    for (unsigned int i = 0; i < mat->rows; i++) {
         if (i != 0) printf("\n ");
         printf("[");
-        for (int j = 0; j < mat->cols; j++) {
+        for (unsigned int j = 0; j < mat->cols; j++) {
             printf("%d", BitMatrixGet(mat, i, j));
         }
         printf("]");
@@ -300,6 +351,46 @@ void BitMatrixSet(struct BitMatrix* mat, unsigned int row, unsigned int col, uns
         mat->data[byte] |= mask;
     } else {
         mat->data[byte] &= mask ^ 0xFF;
+    }
+}
+
+void BitMatrixFlip(struct BitMatrix* mat, unsigned int row, unsigned int col) {
+    assert(mat->cols > col);
+    assert(mat->rows > row);
+
+    unsigned int loc = row*mat->cols + col;
+    unsigned int byte = loc / 8;
+    unsigned int mask = 0x80;
+    mask >>= loc % 8;
+
+    mat->data[byte] ^= mask;
+}
+
+int BitMatrixSame(struct BitMatrix* mat1, struct BitMatrix* mat2) {
+    assert(mat1->rows == mat2->rows);
+    assert(mat1->cols == mat2->cols);
+
+    unsigned int bytes = ((mat1->rows * mat1->cols))/8; // round down
+
+    for (unsigned int i = 0; i < bytes; i++) {
+        if (mat1->data[i] != mat2->data[i]) return 0;
+    }
+
+    unsigned int mask = 0x80;
+    for (unsigned int i = 0; i < (mat1->rows * mat1->cols) - 8*bytes; i++) {
+        if ((mat1->data[bytes] & mask) != (mat2->data[bytes] & mask)) return 0;
+    }
+    
+    return 1;
+}
+
+void BitMatrixXorSet(struct BitMatrix* mat1, struct BitMatrix* mat2) { // mat1 <- mat1 ^ mat2
+    assert(mat1->cols == mat2->cols);
+    assert(mat1->rows == mat2->cols);
+
+    unsigned int bytes = (mat1->rows*mat1->cols + 7)/8; // round up
+    for (unsigned int i = 0; i < bytes; i++) {
+        mat1->data[i] ^= mat2->data[i];
     }
 }
 
@@ -468,45 +559,68 @@ void BitMatrixTransposeSet(struct BitMatrix* mat) {
 struct BitMatrix* BitMatrixMulMatrix(struct BitMatrix* mat1, struct BitMatrix* mat2) {
     assert(mat1->cols == mat2->rows);
     struct BitMatrix* matOut = newBitMatrixZero(mat1->rows, mat2->cols);
+    
+    struct BitMatrix* mat2T = BitMatrixTranspose(mat2);
 
-    struct BitVector* vecTmp1;
-    struct BitVector* vecTmp2;
+    unsigned int bytesOut = (matOut->cols*matOut->rows + 7)/8; // round up
 
-    unsigned int bytes = (matOut->cols*matOut->rows + 7)/8; // round up
-    unsigned int col = 0;
-    unsigned int row = 0;
-    unsigned int mask;
-    vecTmp1 = BitMatrixGetRow(mat1, row);
-    for (unsigned int byte = 0; byte < bytes; byte++) {
-        mask = 0x80;
-        while (mask > 0) {
-            vecTmp2 = BitMatrixGetCol(mat2, col);
-            if (BitVectorInner(vecTmp1, vecTmp2) % 2 == 1) {
-                matOut->data[byte] |= mask;
-            } 
-            BitVectorFree(vecTmp2);
+    unsigned int maskOut;
+    unsigned int mask1;
+    unsigned int mask2;
+
+    unsigned int row = 0; // mat1 row index
+    unsigned int col = 0; // mat2 row index
+
+    for (unsigned int byteOut = 0; byteOut < bytesOut; byteOut++) {
+        maskOut = 0x80;
+        while (maskOut > 0) {
+            int inner = 0;
+            
+            unsigned int byte1 = (row*mat1->cols)/8; // round down
+            unsigned int byte2 = (col*mat2T->cols)/8; // round down
+            
+            mask1 = 0x80;
+            for (unsigned int i = 0; i < row*mat1->cols % 8; i++) mask1 >>= 1;
+
+            mask2 = 0x80;
+            for (unsigned int i = 0; i < col*mat2T->cols % 8; i++) mask2 >>= 1;
+            
+            for (unsigned int i = 0; i < mat1->rows; i++) {
+                if ((mat1->data[byte1] & mask1) != 0 && (mat2T->data[byte2] & mask2) != 0) inner += 1; 
+
+                mask1 >>= 1;
+                mask2 >>= 1;
+
+                if (mask1 == 0) {
+                    mask1 = 0x80;
+                    byte1 += 1;
+                }
+
+                if (mask2 == 0) {
+                    mask2 = 0x80;
+                    byte2 += 1;
+                }
+            }
+            
+            if (inner % 2) matOut->data[byteOut] |= maskOut;
+            maskOut >>= 1;
 
             col += 1;
             if (col >= matOut->cols) {
                 col = 0;
                 row += 1;
                 if (row >= matOut->rows) break;
-                BitVectorFree(vecTmp1);
-                vecTmp1 = BitMatrixGetRow(mat1, row);
             }
-
-            mask >>= 1;
         }
     } 
-    BitVectorFree(vecTmp1);
-
+    BitMatrixFree(mat2T);
     return matOut;
 }
 
 // mat2 <- mat1*mat2;
 void BitMatrixMulMatrixLeft(struct BitMatrix* mat1, struct BitMatrix* mat2) {
     struct BitMatrix* matTmp = BitMatrixMulMatrix(mat1, mat2);
-    BitMatrixCopy(matTmp, mat2);
+    BitMatrixCopy(mat2, matTmp);
     BitMatrixFree(matTmp);
 }
 
@@ -514,7 +628,7 @@ void BitMatrixMulMatrixLeft(struct BitMatrix* mat1, struct BitMatrix* mat2) {
 // mat1 <- mat1*mat2;
 void BitMatrixMulMatrixRight(struct BitMatrix* mat1, struct BitMatrix* mat2) {
     struct BitMatrix* matTmp = BitMatrixMulMatrix(mat1, mat2);
-    BitMatrixCopy(matTmp, mat1);
+    BitMatrixCopy(mat1, matTmp);
     BitMatrixFree(matTmp);
 }
 
@@ -553,7 +667,7 @@ void BitMatrixMulVectorSet(struct BitMatrix* mat, struct BitVector* vec) {
     assert(mat->cols == mat->rows);
     
     struct BitVector* vecTmp = BitMatrixMulVector(mat, vec);
-    BitVectorCopy(vecTmp, vec);
+    BitVectorCopy(vec, vecTmp);
 
     BitVectorFree(vecTmp);
 }
@@ -561,11 +675,11 @@ void BitMatrixMulVectorSet(struct BitMatrix* mat, struct BitVector* vec) {
 
 unsigned int BitMatrixRank(struct BitMatrix* mat) {
     struct BitMatrix* null = newBitMatrixIdentity(mat->cols);
-    unsigned int rank = mat->cols;
+    unsigned int rank = mat->cols; // rank of the null space
 
-    struct BitMatrix* good = newBitMatrixZero(mat->rows, mat->cols);
-    struct BitMatrix* bad = newBitMatrixZero(mat->rows, mat->cols);
-    unsigned int numgood, numbad, mask;
+    struct BitMatrix* good = newBitMatrixZero(mat->cols, mat->cols);
+    struct BitMatrix* bad = newBitMatrixZero(mat->cols, mat->cols);
+    unsigned int numgood, numbad;
 
     for (unsigned int row = 0; row < mat->rows; row++) {
         struct BitVector* rowVec = BitMatrixGetRow(mat, row);
@@ -595,7 +709,7 @@ unsigned int BitMatrixRank(struct BitMatrix* mat) {
 
             for (; rank+1 < numbad+numgood; rank++) {
                 struct BitVector* badVec = BitMatrixGetRow(bad, 1+rank-numgood);
-                BitVectorXorSet(flipVec, badVec);
+                BitVectorXorSet(badVec, flipVec);
                 BitMatrixSetRow(null, badVec, rank);
             }
         }
@@ -605,6 +719,6 @@ unsigned int BitMatrixRank(struct BitMatrix* mat) {
     BitMatrixFree(good);
     BitMatrixFree(bad);
 
-    rank = mat->cols - rank;
+    rank = mat->cols - rank; // rank of null space to rank of mat
     return rank;
 }

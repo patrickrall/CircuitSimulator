@@ -80,6 +80,7 @@ class StabilizerState:
     def updateDJ(self, R):
         # equation 49
         self.D = np.dot(R, self.D)
+
         for b in range(self.k):
             for c in range(b):
                 self.D += self.J[b, c]*R[:, b]*R[:, c]
@@ -158,6 +159,7 @@ class StabilizerState:
             self.updateDJ(R)
 
             S = [self.k-1]
+
         # Now J[a, a] = 0 for all a not in S
 
         E = [k for k in range(self.k) if k not in S]
@@ -315,6 +317,7 @@ class StabilizerState:
 
         # K <- K_1, (also copy q_1)
         state = deepcopy(state1)
+
         for b in range(state2.k, state2.n):  # not k_2+1 because of zero-indexing
             alpha = np.dot(state2.h, state2.Gbar[b]) % 2
             eps = state.shrink(state2.Gbar[b], alpha)
@@ -325,6 +328,7 @@ class StabilizerState:
         # Now K = K_1 \cap K_2
 
         y = np.dot(state2.Gbar[:state2.k, :], (state.h + state2.h)) % 2
+
         R = np.dot(state.G[:state.k:, :], state2.Gbar[:state2.k, :].T) % 2
 
         # R is now k by k_2. Since k <= k_2,
@@ -469,6 +473,7 @@ class StabilizerState:
         # compute w in {0, 2, 4, 6} using eq. 88
         w = 2*m
         w += 4*(np.dot(zeta, self.h) % 2)
+
         w += np.dot(self.D, vecXi)
         for b in range(self.k):
             for a in range(b):

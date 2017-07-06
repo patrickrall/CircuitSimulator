@@ -33,20 +33,23 @@ struct BitVector {
 struct BitVector* newBitVector(unsigned int size);  // alloc and init to 0
 struct BitVector* newBitVectorRandom(unsigned int size);  // alloc and init randomly
 
+void BitVectorSetRandom(struct BitVector* vec);
+void BitVectorSetZero(struct BitVector* vec);
+
 void BitVectorFree(struct BitVector* vec);
-void BitVectorCopy(struct BitVector* vec1, struct BitVector* vec2); // vec2 <- vec1
+void BitVectorCopy(struct BitVector* vec1, struct BitVector* vec2); // vec1 <- vec2
 void BitVectorPrint(struct BitVector* vec);
 
 unsigned int BitVectorGet(struct BitVector* vec, unsigned int loc);
 void BitVectorSet(struct BitVector* vec, unsigned int loc, unsigned int value);
 void BitVectorFlip(struct BitVector* vec, unsigned int loc);
 
+int BitVectorSame(struct BitVector* vec1, struct BitVector* vec2);
 
 // number of positions where they coincide. Do the mod 2 yourself.
 unsigned int BitVectorInner(struct BitVector* vec1, struct BitVector* vec2);
 
-void BitVectorXorSet(struct BitVector* vec1, struct BitVector* vec2); // vec2 <- vec1 ^ vec2
-
+void BitVectorXorSet(struct BitVector* vec1, struct BitVector* vec2); // vec1 <- vec1 ^ vec2
 
 /*************************** Bit Matrix *************************/
 
@@ -62,13 +65,18 @@ struct BitMatrix* newBitMatrixRandom(unsigned int rows, unsigned int cols);  // 
 
 void BitMatrixFree(struct BitMatrix* mat);
 void BitMatrixSetZero(struct BitMatrix* mat);
+void BitMatrixSetRandom(struct BitMatrix* mat);
 void BitMatrixSetIdentity(struct BitMatrix* mat);
-void BitMatrixCopy(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat2 <- mat1
+void BitMatrixCopy(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat1 <- mat2
 void BitMatrixPrint(struct BitMatrix* mat);
 
 unsigned int BitMatrixGet(struct BitMatrix* mat, unsigned int row, unsigned int col);
 void BitMatrixSet(struct BitMatrix* mat, unsigned int row, unsigned int col, unsigned int value);
 void BitMatrixFlip(struct BitMatrix* mat, unsigned int row, unsigned int col);
+
+int BitMatrixSame(struct BitMatrix* mat1, struct BitMatrix* mat2);
+
+void BitMatrixXorSet(struct BitMatrix* mat1, struct BitMatrix* mat2); // mat1 <- mat1 ^ mat2
 
 void BitMatrixSetCol(struct BitMatrix* mat, struct BitVector* vec, unsigned int col);
 void BitMatrixSetRow(struct BitMatrix* mat, struct BitVector* vec, unsigned int row);

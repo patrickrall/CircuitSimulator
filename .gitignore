@@ -8,4 +8,5 @@ tests/exampleFunctionCalls/Shrink.txt
 */*.pyc
 *.pyc
 */libcirc/stabilizer/*.pyc
+*/libcirc/compile/*.pyc
 */libcirc/sample

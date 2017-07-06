@@ -3,8 +3,6 @@
 #include <math.h>
 #include <time.h>
 #include <string.h>
-#include <gsl/gsl_complex_math.h>
-#include <gsl/gsl_blas.h>
 
 #include "mpi.h"
 #include "utils/comms.h"
@@ -12,26 +10,26 @@
 
 /********************* Prototypes *********************/
 
-double multiSampledProjector(struct Projector *P, gsl_matrix *L, int exact, double norm, int samples, int bins);
-double singleProjectorSample(struct Projector *P, gsl_matrix *L, int exact);
+double multiSampledProjector(struct Projector* P, struct BitMatrix* L, int exact, double norm, int samples, int bins);
+double singleProjectorSample(struct Projector* P, struct BitMatrix* L, int exact);
 
-double exactProjector(struct Projector *P, gsl_matrix *L, int exact, double norm);
-gsl_complex exactProjectorWork(int i, struct Projector *P, gsl_matrix *L, int exact);
+double exactProjector(struct Projector* P, struct BitMatrix* L, int exact, double norm);
+Complex exactProjectorWork(int i, struct Projector* P, struct BitMatrix* L, int exact);
 
 void master(int argc, char* argv[]);
 void slave(void);
 
-void decompose(const int t, gsl_matrix **L, double *norm, int *exact, int *k, 
+void decompose(const int t, struct BitMatrix **L, double *norm, int *exact, int *k, 
 		const double fidbound,  const int rank, const int fidelity, const int forceL,
         const int verbose, const int quiet);
+
+char *binrep(unsigned int val, char *buff, int sz);
 
 /********************* MAIN *********************/
 int main(int argc, char* argv[]) {
     MPI_Init(NULL, NULL);
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
-    gsl_set_error_handler_off();
    
     if (world_rank == 0) master(argc, argv);
     else slave();
@@ -77,7 +75,7 @@ void master(int argc, char* argv[]) {
 
     int verbose;
     fscanf(stream,"%d", &verbose);
-    if (print) printf("verbose: %d\n", quiet);
+    if (print) printf("verbose: %d\n", verbose);
 
     // Sampling method
     int noapprox;
@@ -130,14 +128,40 @@ void master(int argc, char* argv[]) {
     if (print) printf("H:\n");
     if (print) printProjector(H);
 
+    /************** BLAS or custom back end *************/
+
+    #ifdef BLAS
+        if (verbose) printf("Using BLAS for matrix operations.\n");
+    #else 
+        if (verbose) printf("Using custom code for matrix operations.\n");
+    #endif
+
     /************** Call decompose, send data to workers *************/
    
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     double norm;
-    gsl_matrix *L; 
+    struct BitMatrix* L; 
     decompose(t, &L, &norm, &exact, &k, fidbound, rank, fidelity, forceL, verbose, quiet); 
+
+    if (verbose) {
+        if (exact) printf("Using exact decomposition of |H^t>: 2^%d\n", (t+1)/2);
+        else printf("Stabilizer rank of |L>: 2^%d\n", k);
+    }
+
+    if (exact) {
+        printf("Samples:%d, terms:%f\n", samples*bins*2, (pow(2,(t+1)/2) - 1) );
+        if (samples*bins*2 > (pow(2,(t+1)/2) - 1)) {
+            noapprox = 1;
+            if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
+        }
+    } else {
+        if (samples*bins*2 > (pow(2,k) - 1)) {
+            noapprox = 1;
+            if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
+        }
+    }
 
     // random seed
     int seed = (int)time(NULL);
@@ -145,12 +169,12 @@ void master(int argc, char* argv[]) {
 
 
     for (int dest = 1; dest < world_size; dest++) {
-        send_int(1, dest); // init command
-        send_int(rand(), dest); // random seed
+        sendInt(1, dest); // init command
+        sendInt(rand(), dest); // random seed
         
-        send_int(noapprox, dest);
-        send_int(exact, dest);
-        if (!exact) send_gsl_matrix(L, dest);
+        sendInt(noapprox, dest);
+        sendInt(exact, dest);
+        if (!exact) sendBitMatrix(L, dest);
     }
 
     /********************* Evaluate projectors *********************/
@@ -165,20 +189,22 @@ void master(int argc, char* argv[]) {
     }
 
     // tell procs to terminate
-    for (int dest = 1; dest < world_size; dest++) send_int(0, dest);
+    for (int dest = 1; dest < world_size; dest++) sendInt(0, dest);
+
+    int sigfigs = 17;  // number of sigfigs
 
     if (print == 1) {
-        printf("|| Gprime |H^t> ||^2 ~= %f\n", numerator);
-        printf("|| Hprime |H^t> ||^2 ~= %f\n", denominator);
-        if (denominator > 0) printf("Output: %f\n", numerator/denominator);
+        printf("|| Gprime |H^t> ||^2 ~= %.*e\n", sigfigs, numerator);
+        printf("|| Hprime |H^t> ||^2 ~= %.*e\n", sigfigs, denominator);
+        if (denominator > 0) printf("Output: %.*e\n", sigfigs, numerator/denominator);
     } 
         
-    printf("%f\n", numerator);
-    printf("%f\n", denominator);
+    printf("%.*e\n", sigfigs, numerator);
+    printf("%.*e\n", sigfigs, denominator);
 
-    free(G);
-    free(H);
-    if (!exact) gsl_matrix_free(L);
+    freeProjector(G);
+    freeProjector(H);
+    if (!exact) BitMatrixFree(L);
 }
 
 
@@ -191,33 +217,33 @@ void slave(void) {
     struct Projector *P;
 
     int seed, noapprox, exact; 
-    gsl_matrix *L; 
+    struct BitMatrix* L; 
 
     int size;
 
     while (1) {
-        int cmd = recv_int(0);
+        int cmd = recvInt(0);
         // 0 - exit
         // 1 - init
         // 2 - eval projector
 
         switch (cmd) {
             case 0: // exit
-                if (!exact) gsl_matrix_free(L);
+                if (!exact) BitMatrixFree(L);
                 return;
 
             case 1: // init
-                seed = recv_int(0);     
+                seed = recvInt(0);     
                 srand(seed);
                 
-                noapprox = recv_int(0);
-                exact = recv_int(0);
-                if (!exact) L = recv_gsl_matrix(0);
+                noapprox = recvInt(0);
+                exact = recvInt(0);
+                if (!exact) L = recvBitMatrix(0);
                 
                 break;
             case 2: // eval projector
-                P = recv_projector(0);
-                size = recv_int(0);
+                P = recvProjector(0);
+                size = recvInt(0);
                 
                 if (noapprox == 0) { // add samples
                     double total = 0;
@@ -226,20 +252,19 @@ void slave(void) {
                         total += singleProjectorSample(P, L, exact);
                     }
 
-                    send_double(total, 0);
+                    sendDouble(total, 0);
                 } else { // add inner products
-                    gsl_complex total = gsl_complex_rect(0,0);
-                    gsl_complex part;
+                    Complex total = {0,0};
 
-                    for (int i = world_rank; i < size; i += world_size) {
-                        part = exactProjectorWork(i, P, L, exact);
-                        total = gsl_complex_add(total, part);
+                    for (int l = world_rank; l < size; l += world_size) {
+                        Complex part = exactProjectorWork(l, P, L, exact);
+                        total = ComplexAdd(total, part);
                     }
 
-                    send_gsl_complex(total, 0);
+                    sendComplex(total, 0);
                 }
 
-                free(P);
+                freeProjector(P);
                 break;
             default:
                 continue;
@@ -253,13 +278,13 @@ void slave(void) {
 int mod(int a, int b);
 
 //if k <= 0, the function finds k on its own
-void decompose(const int t, gsl_matrix **L, double *norm, int *exact, int *k, 
+void decompose(const int t, struct BitMatrix **L, double *norm, int *exact, int *k, 
 		const double fidbound,  const int rank, const int fidelity, const int forceL,
         const int verbose, const int quiet) {
 	
 	//trivial case
 	if(t == 0){
-		*L = gsl_matrix_alloc(0, 0);
+		*L = 0x00;
         *exact = 0;
 		*norm = 1;
 		return;
@@ -277,12 +302,12 @@ void decompose(const int t, gsl_matrix **L, double *norm, int *exact, int *k,
 		forceK  = 0;
 		//pick unique k such that 1/(2^(k-2)) \geq v^(2t) \delta \geq 1/(2^(k-1))
 		*k = ceil(1 - 2*t*log2(v) - log2(fidbound));
-        if (verbose) printf("Autopicking k = %d.", *k);
+        if (verbose) printf("Autopicking k = %d to achieve delta = %f.\n", *k, fidbound);
 	}
 	
 	//can achieve k = t/2 by pairs of stabilizer states
 	if(*k > t/2 && !forceK && !forceL){
-        if (verbose) printf("k > t/2. Reverting to exact decomposition.");
+        if (verbose) printf("k > t/2. Reverting to exact decomposition.\n");
         *exact = 1;
 		return;
 	}
@@ -297,77 +322,21 @@ void decompose(const int t, gsl_matrix **L, double *norm, int *exact, int *k,
 	
 	double innerProduct = 0;
 	
-	*L = gsl_matrix_alloc(*k, t);
+	*L = newBitMatrixZero(*k, t);
 	
 	double Z_L;
 	
 	while(innerProduct < 1-fidbound || forceK){
 	
         // sample random matrix
-		for(int i=0;i<*k;i++){
-			for(int j=0;j<t;j++){
-				gsl_matrix_set(*L, i, j, rand() & 1);	//set to either 0 or 1
-			}
-		}
+	    BitMatrixSetRandom(*L);	
 		
         // optionally verify rank
 		if(rank){
-            // Make identity matrix
-            gsl_matrix * Null = gsl_matrix_alloc(t, t);
-            gsl_matrix_set_identity(Null);
-            int nullsize = t;
-
-            // memory for temporary rows
-            gsl_matrix * Good = gsl_matrix_alloc(t, t);
-            gsl_matrix * Bad = gsl_matrix_alloc(t, t);
-            int goodsize, badsize;
-            
-            for (int i = 0; i < *k; i++) {
-                goodsize = 0;
-                badsize = 0;
-
-                for (int j = 0; j < nullsize; j++) {
-                    int inner = 0;
-                    for (int l = 0; l < t; l++) {
-                        inner += gsl_matrix_get(*L, i, l) * gsl_matrix_get(Null, j, l);
-                    }
-                    
-                    if (inner % 2 == 0) {
-                        for (int l = 0; l < t; l++) {
-                            gsl_matrix_set(Good, goodsize, l, gsl_matrix_get(Null, j, l));
-                        }
-                        goodsize += 1;
-                    } else {
-                        for (int l = 0; l < t; l++) {
-                            gsl_matrix_set(Bad, badsize, l, gsl_matrix_get(Null, j, l));
-                        }
-                        badsize += 1;
-                    }
-                }
-
-                nullsize = 0;
-                for (int j = 0; j < goodsize; j++) {
-                    for (int l = 0; l < t; l++) {
-                        gsl_matrix_set(Null, nullsize, l, gsl_matrix_get(Good, j, l));
-                    }
-                    nullsize += 1;
-                }
- 
-                for (int j = 1; j < badsize; j++) {
-                    for (int l = 0; l < t; l++) {
-                        double val = gsl_matrix_get(Bad, 0, l) + gsl_matrix_get(Bad, j, l);
-                        gsl_matrix_set(Null, nullsize, l, (double)((int)val % 2));
-                    }
-                    nullsize += 1;
-                }           
-            }
-		
-            gsl_matrix_free(Null);
-            gsl_matrix_free(Good);
-            gsl_matrix_free(Bad);
+            int thisrank = BitMatrixRank(*L); 
 
 			//check rank
-			if(t - nullsize < *k){
+			if(thisrank < *k){
 				if (!quiet) printf("L has insufficient rank. Sampling again...\n");
 				continue;
 			}
@@ -376,59 +345,45 @@ void decompose(const int t, gsl_matrix **L, double *norm, int *exact, int *k,
 		if (fidelity) {
 			//compute Z(L) = sum_x 2^{-|x|/2}
 			Z_L = 0;
-			
-			gsl_vector *z, *x;
-			z = gsl_vector_alloc(*k);
-			x = gsl_vector_alloc(t);
-			int *zArray = (int *)calloc(*k, sizeof(int));
-			int currPos, currTransfer;
+		
+            char buff[*k+1];
 			for (int i=0; i<pow(2,*k); i++) {
-				//starting from k 0s, add (binary) +1 2^k times,
-                //effectively generating all possible vectors z of length k
-				//least important figure is on the very left
-				currPos = 0;
-				currTransfer = 1;
-				while(currTransfer && currPos<*k){
-					*(zArray+currPos) += currTransfer;
-					if(*(zArray+currPos) > 1){
-						//current position overflowed -> transfer to next
-						*(zArray+currPos) = 0;
-						currTransfer = 1;
-						currPos++;
-					}
-					else{
-						currTransfer = 0;
-					}
-				}
-				
-				for(int i=0;i<*k;i++){
-					gsl_vector_set(z, i, (double)(*(zArray+currPos)));
-				}
-				
-				gsl_blas_dgemv(CblasTrans, 1., *L, z, 0., x);
-				
-				double temp = 0;
-				for(int i=0;i<t;i++){
-					temp += mod((int)gsl_vector_get(x, i), 2);
-				}
-				
-				Z_L += pow(2, -temp/2);
-			}
-			
-			innerProduct = pow(2,*k) * pow(v, 2*t) / Z_L;
+                char *Lbits = binrep(i,buff,*k);
+                
+                struct BitVector *bitstring = newBitVector(t);
+
+                int j=0;
+                while(Lbits[j] != '\0'){
+                    if(Lbits[j] == '1'){
+                        struct BitVector *tempVector = BitMatrixGetRow(*L, j);
+                        BitVectorXorSet(bitstring, tempVector);
+                        BitVectorFree(tempVector);
+                    }
+                    j++;
+                }
+                
+                int hamming = 0;
+                for (int j = 0; j<t; j++) hamming += BitVectorGet(bitstring, j);
+                
+                BitVectorFree(bitstring);
+                
+			    Z_L += pow(2, -hamming/2);
+            }
+
+            innerProduct = pow(2,*k) * pow(v, 2*t) / Z_L;
 			
 			if(forceK) {
                 // quiet can't be set for this
-				printf("Inner product <H^t|L>: %lf\n", innerProduct);
+				printf("delta = 1 - <H^t|L>: %lf\n", 1 - innerProduct);
 				break;
 			} else if (innerProduct < 1-fidbound) {
-				if (!quiet) printf("Inner product <H^t|L>: %lf - Not good enough!\n", innerProduct);
+				if (!quiet) printf("delta = 1 - <H^t|L>: %lf - Not good enough!\n", 1 - innerProduct);
 			} else {
-				if (!quiet) printf("Inner product <H^t|L>: %lf\n", innerProduct);
+				if (!quiet) printf("delta = 1 - <H^t|L>: %lf\n", 1 - innerProduct);
 			}
 		}
 		else break;
 	}
 	
-	if(fidelity) *norm = sqrt(pow(2,*k) * Z_L);
+	if (fidelity) *norm = sqrt(pow(2,*k) * Z_L);
 }

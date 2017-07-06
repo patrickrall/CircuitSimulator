@@ -51,7 +51,7 @@ def compare(state, psi):
 
 f = open(directory + "ExponentialSum.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 indexcut = 0
 failed = 0
@@ -89,7 +89,7 @@ else:
 
 f = open(directory + "ShrinkSmall.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 indexcut = 0
 failed = 0
@@ -101,6 +101,7 @@ for test in tests:
 
     # try:
     state = load(test["psi"]["psi"])
+
     # except KeyError:
     #    import pdb; pdb.set_trace()
     xi = np.array(test['xi']['xi'])
@@ -139,10 +140,9 @@ else:
 
 f = open(directory + "InnerProduct.txt")
 tests = json.loads(f.read())
-tests = tests[:275]
-# tests = []
+tests = []
 
-indexcut = 164
+indexcut = 4  # 164
 failed = 0
 index = 0
 starttime = datetime.now()
@@ -154,6 +154,7 @@ for test in tests:
     state2 = load(test["state2"]["state2"])
 
     (eps, p, m) = StabilizerState.innerProduct(state1, state2, exact=True)
+
     if eps != test["eps_out"]\
             or m != test["m_out"] % 8\
             or p != test["p_out"]:
@@ -161,6 +162,7 @@ for test in tests:
         print("InnerProduct %d failed: (%d,%d,%d) should be (%d,%d,%d)" %
               (index, eps, p, m, test["eps_out"], test["p_out"], test["m_out"]))
         failed += 1
+    break
 
 if len(tests) == 0: print("[\033[93mSkipped\033[0m] InnerProduct")
 else:
@@ -171,7 +173,7 @@ else:
 # -------------------- Extend -------------------    ktrue = test['psi']['psi']['k']
 f = open(directory + "Extend.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 indexcut = 0
 failed = 0
@@ -239,7 +241,7 @@ else:
 
 f = open(directory + "UnpackRevised.txt")
 tests = json.loads(f.read())
-# tests = []
+tests = []
 
 indexcut = 0
 failed = 0
