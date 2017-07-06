@@ -171,19 +171,21 @@ double exactProjector(struct Projector* P, struct BitMatrix* L, int exact, doubl
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     int size;
-    if (exact) size = pow(2, ceil((double)t / 2));
-    else size = pow(2, k);
+    if (exact) size = ceil((double)t / 2);
+    else size = k;
+
+    int kRange = pow(2,size - 1) * (pow(2, size) +1);  // chi * (chi + 1)/2
 
     Complex total = {0,0};
     Complex part;
     for (int dest = 1; dest < world_size; dest++) {
         sendInt(2, dest); // command
         sendProjector(P, dest);
-        sendInt(size, dest);
+        sendInt(kRange, dest);
     }    
 
-    for (int i = 0; i < size; i += world_size) {
-        part = exactProjectorWork(i, P, L, exact);
+    for (int l = 0; l < kRange; l += world_size) {
+        part = exactProjectorWork(l, P, L, exact);
         total = ComplexAdd(total, part);
     }
 
@@ -198,11 +200,19 @@ double exactProjector(struct Projector* P, struct BitMatrix* L, int exact, doubl
 
 
 // Work function for exactProjector.
-Complex exactProjectorWork(int i, struct Projector* P, struct BitMatrix* L, int exact) {
+Complex exactProjectorWork(int l, struct Projector* P, struct BitMatrix* L, int exact) {
     int t = P->Nqubits;
 
-    int k;
-    if (!exact) k = L->rows;
+    int chi;
+    if (exact) chi = pow(2, ceil((double)t / 2));
+    else chi = pow(2, L->rows);
+
+    int i = 0;
+    while (l >= chi - i) {
+        l -= chi - i;
+        i += 1;
+    }
+    int j = l + i;
 
     struct StabilizerState* theta;
     if (exact) theta = prepH(i, t);
@@ -211,11 +221,11 @@ Complex exactProjectorWork(int i, struct Projector* P, struct BitMatrix* L, int 
     // Project theta
     double projfactor = 1;
 
-    for (int j = 0; j < P->Nstabs; j++) {
-        int m = BitVectorGet(P->phaseSign, j)*2;
-        m += BitVectorGet(P->phaseComplex, j);
-        struct BitVector* zeta = BitMatrixGetRow(P->zs, j);
-        struct BitVector* xi = BitMatrixGetRow(P->xs, j);
+    for (int r = 0; r < P->Nstabs; r++) {
+        int m = BitVectorGet(P->phaseSign, r)*2;
+        m += BitVectorGet(P->phaseComplex, r);
+        struct BitVector* zeta = BitMatrixGetRow(P->zs, r);
+        struct BitVector* xi = BitMatrixGetRow(P->xs, r);
        
         double res = measurePauli(theta, m, zeta, xi);
         projfactor *= res;
@@ -232,32 +242,20 @@ Complex exactProjectorWork(int i, struct Projector* P, struct BitMatrix* L, int 
     // Evaluate other components
     struct StabilizerState* phi;
 
-    int size;
-    if (exact) size = pow(2, ceil((double)t / 2));
-    else size = pow(2, k);
-
     // Diagonal term
-    if (exact) phi = prepH(i, t);
-    else phi = prepL(i, t, L);
+    if (exact) phi = prepH(j, t);
+    else phi = prepL(j, t, L);
 
     Complex innerProd = innerProduct(theta, phi);
-    Complex total = ComplexMulReal(innerProd, projfactor); 
 
     freeStabilizerState(phi);
-
-    // Off diagonal terms
-    for (int j = i+1; j < size; j++) {
-        if (exact) phi = prepH(j, t);
-        else phi = prepL(j, t, L);
-
-        Complex innerProd = innerProduct(theta, phi);
+    freeStabilizerState(theta);
+   
+    if (i == j) {
+        return ComplexMulReal(innerProd, projfactor); 
+    } else {
         innerProd.re *= 2*projfactor;
         innerProd.im = 0;
-        total = ComplexAdd(total, innerProd);         
-
-        freeStabilizerState(phi);
+        return innerProd; 
     }
-
-    freeStabilizerState(theta);
-    return total;
 }

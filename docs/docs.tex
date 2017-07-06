@@ -91,7 +91,7 @@ The most of the work in the algorithm is to calculate $|\Pi\ket{H^{\otimes t}}|^
 The CircuitSimulator application implements efficient manipulations of so-called stabilizer states. $\ket{H}$ is not a stabilizer state, but we can write $\ket{H^{\otimes 2}}$ as a linear combination of two stabilizer states. To write $\ket{H^{\otimes t}}$ we therefore require a linear combination of $\chi = 2^{\lceil t/2\rceil}$ stabilizer states: $\ket{H^{\otimes t}} \propto \sum_{i=1}^\chi \ket{\phi_i}$.  We don't need to worry about normalization since we are calculating the ratio of two such inner products. Expand $|\Pi\ket{H^{\otimes t}}|^2$:
 $$\ket{H^{\otimes t}} = \sum^\chi_{i=1} \ket{\phi_i} \hspace{3mm} \to \hspace{3mm} |\Pi\ket{H^{\otimes t}}|^2 = |\bra{H^{\otimes t}}\Pi\ket{H^{\otimes t}}| \propto \left| \sum^\chi_{i=1} \sum^\chi_{j=1}\bra{\phi_i}\Pi\ket{\phi_j}\right|.\label{eq:decomp}$$
 
-There are $\chi^2 = 2^t$ terms in this sum, so this algorithm runs in $O(2^t)$. This calculation is so slow that Bravyi and Gosset did not include it in their paper. Instead, they developed several approximate techniques that can calculate output probabilities to arbitrarily small error.
+There are $O(\chi^2) = O(2^t)$ terms in this sum, so this algorithm runs in $O(2^t)$. For large $t$ this calculation is so slow that Bravyi and Gosset did not include it in their paper. Instead, they developed several approximate techniques that can calculate output probabilities to arbitrarily small error.
 
 
 \subsection{Inner product approximation} \label{sec:ipa}
@@ -110,7 +110,7 @@ The number of samples and bins can be set manually. However, you can also set $\
 
 \noindent \textbf{Configuration}
 \begin{itemize}
-    \item This approximation is done by default. Turn it off using the \textsc{-nosampling} flag (In the code, this switch is called \textit{noapprox}).
+    \item This approximation is done by default unless an exact calculation is faster. Turn it off using the \textsc{-nosampling} flag (In the code, this switch is called \textit{noapprox}).
     \item Set the number of samples $L$ directly using the $\textsc{samples=}$ option. $L=2000$ is the default and guarantees $\eps = 0.2$ with $p = 5\%$ for large $t$.
     \item Set the number of bins directly using the $\textsc{bins=}$ option. Default is 1 bin.
     \item Set the multiplicative error $\eps$ with $\textsc{error=}$. Overrides $\textsc{samples=}$ and $\textsc{bins=}$.
@@ -177,7 +177,7 @@ These functions are written in Python and in C. File names and function names ar
         \item The Python version calculates projectors $\Pi_G'$ and $\Pi_H'$ using \textbf{projectors} and \textbf{truncate} (libcirc/compile/projectors.py).
         \item Given the inner product approximation parameters (section~\ref{sec:ipa}), the number of samples and bins are calculated.
         \item If using the C back end, the Python version passes the projectors and options to the C executable via the \textit{subprocess} module. The C implementation parses the projectors and inputs. Now either the C implementation or the Python implementation proceeds.
-        \item $\textbf{decompose}$ (same file) calculates $\mathcal{L}$ if needed. If $\chi = 2^k$ or $2^{\lceil t/2 \rceil}$ is smaller than the total number of samples, inner product sampling (section~\ref{sec:ipa}) is disabled.
+        \item $\textbf{decompose}$ (same file) calculates $\mathcal{L}$ if needed. Depending on $\chi = 2^k$ or $2^{\lceil t/2 \rceil}$, inner product sampling (section~\ref{sec:ipa}) is disabled if an exact calculation is faster.
             \item $|\Pi_G'\ket{H^{\otimes t}}|^2$ and $|\Pi_H'\ket{H^{\otimes t}}|^2$ are calculated. If using the inner product approximation (section~\ref{sec:ipa}), it uses \textbf{multiSampledProjector} (libcirc/innerprod.*). Otherwise it uses \textbf{exactProjector} (libcirc/innerprod.*).
         \item Finally it outputs the probability $P = |\Pi_G'\ket{H^{\otimes t}}|^2 / |\Pi_H'\ket{H^{\otimes t}}|^2$, returning control to Python if necessary.
     \end{enumerate}
@@ -190,9 +190,9 @@ These functions are written in Python and in C. File names and function names ar
 
     \item[exactProjector] (libcirc/innerprod.*) Given a projector $\Pi$, calculates $|\Pi\ket{H^{\otimes t}}|^2$ without sampling. Continuing from the equation in section~\ref{eq:decomp}, now using zero-indexing:
         $$ |\Pi\ket{H^{\otimes t}}|^2 = \left| \sum^{\chi-1}_{i=0} \sum^{\chi-1}_{j=0}\bra{\phi_i}\Pi\ket{\phi_j}\right| = \left| \sum^{\chi-1}_{i=0}\left( \bra{\phi_i}\Pi\ket{\phi_i} + \sum^{\chi-1}_{j=i+1}2\text{Re}( \bra{\phi_j}\Pi\ket{\phi_i})\right)\right| $$
-        Runs in parallel over the $j$ sum, using \textbf{exactProjectorWork} (same file) to calculate the term in big parentheses.
+        This is a sum of $\chi(\chi+1)/2$ terms. Runs in parallel over an index $0 \leq l < \chi(\chi+1)/2$, using \textbf{exactProjectorWork} to compute the individual inner products.
 
-    \item[exactProjectorWork] (libcirc/innerprod.*) Given an index $i$, calculates a term in the $i$ sum above. If the $\mathcal{L}$ approximation (section~\ref{sec:msa}) is used, $\ket{\phi_{i/j}}$ are prepared using \textbf{prepL} (libcirc/stateprep.*). Otherwise \textbf{prepH} (libcirc/stateprep.*) is used.
+    \item[exactProjectorWork] (libcirc/innerprod.*) Given an index $l$, calculates a term in the sum above. If the $\mathcal{L}$ approximation (section~\ref{sec:msa}) is used, $\ket{\phi_{i/j}}$ are prepared using \textbf{prepL} (libcirc/stateprep.*). Otherwise \textbf{prepH} (libcirc/stateprep.*) is used.
 
     \item[prepH] (libcirc/stateprep.*) Given an index $0 \leq i < 2^{\lceil t/2\rceil}$, prepares a state $\ket{\phi_i}$ such that $\ket{H^{\otimes t}} \propto \sum_{i=0}^{2^{\lceil t/2 \rceil}-1} \ket{\phi_i} $. It achieves this using the decomposition $\ket{H^{\otimes 2}} \propto \ket{\alpha} + \ket{\beta}$ where $\ket{\alpha},\ket{\beta}$ are stabilizer states. $\ket{\phi_i}$ is a tensor product of several $\ket{\alpha}$ and $\ket{\beta}$. 
     

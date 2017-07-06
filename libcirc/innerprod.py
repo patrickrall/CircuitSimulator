@@ -138,7 +138,7 @@ def exactProjector(P, L, norm, procs=1):
         except NotImplementedError:
             procs = 1
 
-    queries = [(P, L, i) for i in range(0, 2**size)]
+    queries = [(P, L, l) for l in range(0, 2**(size-1) * (2**size + 1))]
     if procs > 1:
         pool = Pool(procs)
         total = sum(pool.map(exactProjectorWork, queries))
@@ -149,12 +149,20 @@ def exactProjector(P, L, norm, procs=1):
 
 
 def exactProjectorWork(args):
-    (P, L, i) = args
+    (P, L, l) = args
     (phases, xs, zs) = P
 
     t = len(xs[0])
     if L is None: size = int(np.ceil(t/2))
     else: size = len(L)
+
+    chi = 2**size
+
+    i = 0
+    while l >= chi - i:
+        l -= chi - i
+        i += 1
+    j = l + i
 
     if L is None: theta = prepH(i, t)
     else: theta = prepL(i, t, L)
@@ -165,22 +173,13 @@ def exactProjectorWork(args):
 
         projfactor *= res
 
-        if res == 0 and False: return 0  # theta annihilated by P
+        if res == 0: return 0  # theta annihilated by P
 
-    # diagonal term
-    if L is None: phi = prepH(i, t)
-    else: phi = prepL(i, t, L)
-
-    total = 0
+    if L is None: phi = prepH(j, t)
+    else: phi = prepL(j, t, L)
 
     inner = StabilizerState.innerProduct(theta, phi)
-    total += inner * projfactor
-
-    # off diagonal terms
-    for j in range(i+1, 2**size):
-        if L is None: phi = prepH(j, t)
-        else: phi = prepL(j, t, L)
-
-        inner = StabilizerState.innerProduct(theta, phi)
-        total += 2 * np.real(inner) * projfactor
-    return total
+    if i == j:
+        return inner * projfactor
+    else:
+        return 2 * np.real(inner) * projfactor

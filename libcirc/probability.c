@@ -151,14 +151,15 @@ void master(int argc, char* argv[]) {
     }
 
     if (exact) {
-        if (samples*bins > pow(2,(t+1)/2)) {
+        printf("Samples:%d, terms:%f\n", samples*bins*2, (pow(2,(t+1)/2) - 1) );
+        if (samples*bins*2 > (pow(2,(t+1)/2) - 1)) {
             noapprox = 1;
-            if (verbose) printf("Number of samples is greater than 2^%d. Disabling sampling.\n", (t+1)/2);
+            if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
         }
     } else {
-        if (samples*bins > pow(2,k)) {
+        if (samples*bins*2 > (pow(2,k) - 1)) {
             noapprox = 1;
-            if (verbose) printf("Number of samples is greater than 2^%d. Disabling sampling.\n", k);
+            if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
         }
     }
 
@@ -190,14 +191,16 @@ void master(int argc, char* argv[]) {
     // tell procs to terminate
     for (int dest = 1; dest < world_size; dest++) sendInt(0, dest);
 
+    int sigfigs = 17;  // number of sigfigs
+
     if (print == 1) {
-        printf("|| Gprime |H^t> ||^2 ~= %f\n", numerator);
-        printf("|| Hprime |H^t> ||^2 ~= %f\n", denominator);
-        if (denominator > 0) printf("Output: %f\n", numerator/denominator);
+        printf("|| Gprime |H^t> ||^2 ~= %.*e\n", sigfigs, numerator);
+        printf("|| Hprime |H^t> ||^2 ~= %.*e\n", sigfigs, denominator);
+        if (denominator > 0) printf("Output: %.*e\n", sigfigs, numerator/denominator);
     } 
         
-    printf("%f\n", numerator);
-    printf("%f\n", denominator);
+    printf("%.*e\n", sigfigs, numerator);
+    printf("%.*e\n", sigfigs, denominator);
 
     freeProjector(G);
     freeProjector(H);
@@ -253,8 +256,8 @@ void slave(void) {
                 } else { // add inner products
                     Complex total = {0,0};
 
-                    for (int i = world_rank; i < size; i += world_size) {
-                        Complex part = exactProjectorWork(i, P, L, exact);
+                    for (int l = world_rank; l < size; l += world_size) {
+                        Complex part = exactProjectorWork(l, P, L, exact);
                         total = ComplexAdd(total, part);
                     }
 

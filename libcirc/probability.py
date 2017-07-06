@@ -188,13 +188,13 @@ def probability(circ, measure, config={}):
             else: print("Stabilizer rank of |L>: 2^%d" % len(L))
 
         if L is None:
-            if config.get("samples")*config.get("bins") > 2**np.ceil(t/2):
+            if config.get("samples")*config.get("bins")*2 > (2**np.ceil(t/2) - 1):
                 config["noapprox"] = True
-                if verbose: print("Number of samples is greater than 2^%d. Disabling sampling." % np.ceil(t/2))
+                if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
         else:
-            if config.get("samples")*config.get("bins") > 2**len(L):
+            if config.get("samples")*config.get("bins")*2 > (2**len(L) - 1):
                 config.get["noapprox"] = True
-                if verbose: print("Number of samples is greater than 2^%d. Disabling sampling." % len(L))
+                if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
 
         if config.get("noapprox"):
             numerator = exactProjector(Gprime, L, norm, procs=config.get("procs"))
