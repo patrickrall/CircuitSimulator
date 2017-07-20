@@ -86,7 +86,7 @@ However, the approximations are fully configurable. If you have specific accurac
 
 \subsection{Algorithm background}
 
-The most of the work in the algorithm is to calculate $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit. $\ket{H} = \cos(\pi/8)\ket{0} + \sin(\pi/8)$ is the eigenstate of the Hadamard gate, and is a `magic' state that is used to implement $T$-gates. 
+The most of the work in the algorithm is to calculate $|\Pi\ket{H^{\otimes t}}|^2$, where $\Pi$ is a projector that depends on the circuit. $\ket{H} = \cos(\pi/8)\ket{0} + \sin(\pi/8)\ket{1}$ is the eigenstate of the Hadamard gate, and is a `magic' state that is used to implement $T$-gates. 
 
 The CircuitSimulator application implements efficient manipulations of so-called stabilizer states. $\ket{H}$ is not a stabilizer state, but we can write $\ket{H^{\otimes 2}}$ as a linear combination of two stabilizer states. To write $\ket{H^{\otimes t}}$ we therefore require a linear combination of $\chi = 2^{\lceil t/2\rceil}$ stabilizer states: $\ket{H^{\otimes t}} \propto \sum_{i=1}^\chi \ket{\phi_i}$.  We don't need to worry about normalization since we are calculating the ratio of two such inner products. Expand $|\Pi\ket{H^{\otimes t}}|^2$:
 $$\ket{H^{\otimes t}} = \sum^\chi_{i=1} \ket{\phi_i} \hspace{3mm} \to \hspace{3mm} |\Pi\ket{H^{\otimes t}}|^2 = |\bra{H^{\otimes t}}\Pi\ket{H^{\otimes t}}| \propto \left| \sum^\chi_{i=1} \sum^\chi_{j=1}\bra{\phi_i}\Pi\ket{\phi_j}\right|.\label{eq:decomp}$$
@@ -110,7 +110,7 @@ The number of samples and bins can be set manually. However, you can also set $\
 
 \noindent \textbf{Configuration}
 \begin{itemize}
-    \item This approximation is done by default unless an exact calculation is faster. Turn it off using the \textsc{-nosampling} flag (In the code, this switch is called \textit{noapprox}).
+    \item This approximation is done by default unless an exact calculation is faster. Force it off using the \textsc{-nosampling} flag (In the code, this switch is called \textit{noapprox}). Force it on using the $\textsc{-forceSample}$ option.
     \item Set the number of samples $L$ directly using the $\textsc{samples=}$ option. $L=2000$ is the default and guarantees $\eps = 0.2$ with $p = 5\%$ for large $t$.
     \item Set the number of bins directly using the $\textsc{bins=}$ option. Default is 1 bin.
     \item Set the multiplicative error $\eps$ with $\textsc{error=}$. Overrides $\textsc{samples=}$ and $\textsc{bins=}$.
@@ -129,7 +129,7 @@ Calculating $\delta$ is expensive, so it is not done by default. Calculating the
 
 \noindent \textbf{Configuration}
 \begin{itemize}
-    \item This approximation is on by default when sampling from the circuit output distribution. It is off by default when calculating probabilities. Force it off using the \textsc{-exactstate} flag (In the code, this switch is called \textit{exact}). Force it on by setting $k$ or $\delta$ as described below.
+    \item This approximation is on by default when sampling from the circuit output distribution. It is off by default when calculating probabilities. Force it off using the \textsc{-exactstate} flag (In the code, this switch is called \textit{exact}). Force it on by setting $k$ as described below or with the \textsc{-forceL} option.
     \item Set $k$ directly using the $\textsc{k=}$ option. Software will not override if $k > t/2$, but will override if $k>t$ because then it is impossible for $\mathcal{L}$ to be full rank.
     \item Set expected $\delta$ using the $\textsc{fidbound=}$ option. Default is $\delta = 10^{-5}$. Overridden by $\textsc{k=}$. If the automatically chosen $k$ is larger than $t/2$, the approximation is disabled.
     \item Calculate and print $\delta$ with the $\textsc{-fidelity}$ flag. If $\textsc{fidbound=}$ is set, $\mathcal{L}$ is repeatedly sampled until $\delta$ is good enough.

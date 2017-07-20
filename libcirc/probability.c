@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
 void master(int argc, char* argv[]) {
     // print mode, used for IO debugging. 
     // For algorithm related output use verbose
-    int print = 0;
+    int print = 1;
     if (print) printf("C backend print mode is on.\n");
 
     /************* Determine data source: file or stdin *************/
@@ -120,6 +120,11 @@ void master(int argc, char* argv[]) {
     fscanf(stream,"%d", &forceL);
     if (print) printf("forceL: %d\n", forceL);
 
+    int forceSample;
+    fscanf(stream,"%d", &forceSample);
+    if (print) printf("forceSample: %d\n", forceSample);
+
+
     // Projectors
     struct Projector *G = readProjector(stream);
     if (print) printf("G:\n");
@@ -150,16 +155,23 @@ void master(int argc, char* argv[]) {
         else printf("Stabilizer rank of |L>: 2^%d\n", k);
     }
 
-    if (exact) {
-        if (samples*bins*2 > (pow(2,(t+1)/2) - 1)) {
-            noapprox = 1;
-            if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
+    if (noapprox == 0 && forceSample == 0) {
+        if (exact) {
+            if (samples*bins*2 > (pow(2,(t+1)/2) - 1)) {
+                noapprox = 1;
+                if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
+            }
+        } else {
+            if (samples*bins*2 > (pow(2,k) - 1)) {
+                noapprox = 1;
+                if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
+            }
         }
-    } else {
-        if (samples*bins*2 > (pow(2,k) - 1)) {
-            noapprox = 1;
-            if (verbose) printf("More samples than terms in exact calculation. Disabling sampling.\n");
-        }
+    }
+
+    if (exact == 0 && print) {
+        printf("L:\n");
+        BitMatrixPrint(L);
     }
 
     // random seed

@@ -162,8 +162,8 @@ def probability(circ, measure, config={}):
                 config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
                 config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
             else:  # just take the mean: L = chi/(p * e^2)
-                config["samples"] = int(np.ceil(chi * config.get("error")**(-2) *
-                                                config.get("failprob")**(-1)))
+                config["samples"] = int(np.ceil(chi * config.get("error")**(-1) *
+                                                config.get("failprob")**(-2)))
                 config["bins"] = 1
 
             if not quiet:
@@ -187,14 +187,15 @@ def probability(circ, measure, config={}):
             if L is None: print("Using exact decomposition of |H^t>: 2^%d" % np.ceil(t/2))
             else: print("Stabilizer rank of |L>: 2^%d" % len(L))
 
-        if L is None:
-            if config.get("samples")*config.get("bins")*2 > (2**np.ceil(t/2) - 1):
-                config["noapprox"] = True
-                if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
-        else:
-            if config.get("samples")*config.get("bins")*2 > (2**len(L) - 1):
-                config.get["noapprox"] = True
-                if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
+        if not config.get("noapprox") and not config.get("forceSample"):
+            if L is None:
+                if config.get("samples")*config.get("bins")*2 > (2**np.ceil(t/2) - 1):
+                    config["noapprox"] = True
+                    if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
+            else:
+                if config.get("samples")*config.get("bins")*2 > (2**len(L) - 1):
+                    config.get["noapprox"] = True
+                    if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
 
         if config.get("noapprox"):
             numerator = exactProjector(Gprime, L, norm, procs=config.get("procs"))
@@ -261,6 +262,7 @@ def probability(circ, measure, config={}):
 
         # Debug
         indat += send(1 if config.get("forceL") else 0)  # forceL
+        indat += send(1 if  config.get("forceSample") else 0)  # forceSample
 
         # Projectors
         indat += writeProjector(Gprime)

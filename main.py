@@ -76,6 +76,7 @@ def main(argv):
         elif argv[i][:2] == "y=": config["y"] = argv[i][2:]
         elif argv[i][:2] == "x=": config["x"] = argv[i][2:]
         elif argv[i] == "-forceL": config["forceL"] = True
+        elif argv[i] == "-forceSample": config["forceSample"] = True
         elif i == 2: return usage("HT=? option replaces file and measurement argument.")
         else: return usage("Invalid argument: " + argv[i])
 
