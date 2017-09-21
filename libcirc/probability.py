@@ -138,7 +138,7 @@ def probability(circ, measure, config={}):
         config["python"] = True
 
     # verify existence of executable
-    if not config.get("python"):
+    if not config.get("python") and not config.get("file"):
         if config.get("cpath") is None:
             if not quiet: print("C executable unspecified. Reverting to python implementation.")
             config["python"] = True
@@ -177,6 +177,9 @@ def probability(circ, measure, config={}):
 
     # ------------------------------------ Python backend ------------------------------------
     if config.get("python"):
+        print("Nerfing Python backend for testing on Stampede.")
+        return None
+
         # calculate |L> ~= |H>
         L, norm = decompose(t, config)
 

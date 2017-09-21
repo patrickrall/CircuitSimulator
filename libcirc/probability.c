@@ -127,18 +127,18 @@ void master(int argc, char* argv[]) {
 
     // Projectors
     struct Projector *G = readProjector(stream);
-    if (print) printf("G:\n");
-    if (print) printProjector(G);
+    // if (print) printf("G:\n");
+    // if (print) printProjector(G);
     struct Projector *H = readProjector(stream);
-    if (print) printf("H:\n");
-    if (print) printProjector(H);
+    // if (print) printf("H:\n");
+    // if (print) printProjector(H);
 
     /************** BLAS or custom back end *************/
 
     #ifdef BLAS
-        if (verbose) printf("Using BLAS for matrix operations.\n");
+        if (verbose || print) printf("Using BLAS for matrix operations.\n");
     #else 
-        if (verbose) printf("Using custom code for matrix operations.\n");
+        if (verbose || print) printf("Using custom code for matrix operations.\n");
     #endif
 
     /************** Call decompose, send data to workers *************/
@@ -149,6 +149,8 @@ void master(int argc, char* argv[]) {
     double norm;
     struct BitMatrix* L; 
     decompose(t, &L, &norm, &exact, &k, fidbound, rank, fidelity, forceL, verbose, quiet); 
+
+    if (print) printf("World Size: %d\n", world_size);
 
     if (verbose) {
         if (exact) printf("Using exact decomposition of |H^t>: 2^%d\n", (t+1)/2);
@@ -255,23 +257,35 @@ void slave(void) {
             case 2: // eval projector
                 P = recvProjector(0);
                 size = recvInt(0);
+                printf("Thread %d do thing.\n", world_rank);
+                clock_t begin = clock();
                 
                 if (noapprox == 0) { // add samples
                     double total = 0;
-
+                    
+                    int count = 0;
                     for (int i = world_rank; i < size; i += world_size) {
+                        count += 1;
                         total += singleProjectorSample(P, L, exact);
                     }
-
+                    
+                    clock_t end = clock();
+                    double time_spent = (double)(end - begin)/ CLOCKS_PER_SEC;
+                    printf("Thread %d done %d things in time %f.\n", world_rank, count, time_spent);
                     sendDouble(total, 0);
                 } else { // add inner products
                     Complex total = {0,0};
 
+                    int count = 0;
                     for (int l = world_rank; l < size; l += world_size) {
+                        count += 1;
                         Complex part = exactProjectorWork(l, P, L, exact);
                         total = ComplexAdd(total, part);
                     }
 
+                    clock_t end = clock();
+                    double time_spent = (double)(end - begin)/ CLOCKS_PER_SEC;
+                    printf("Thread %d done %d things in time %f.\n", world_rank, count, time_spent);
                     sendComplex(total, 0);
                 }
 
