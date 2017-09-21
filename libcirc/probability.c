@@ -257,8 +257,9 @@ void slave(void) {
             case 2: // eval projector
                 P = recvProjector(0);
                 size = recvInt(0);
-                printf("Thread %d do thing.\n", world_rank);
-                clock_t begin = clock();
+                //TODO: remove debug print statements
+                //printf("Thread %d do thing.\n", world_rank);
+                //clock_t begin = clock();
                 
                 if (noapprox == 0) { // add samples
                     double total = 0;
@@ -269,9 +270,9 @@ void slave(void) {
                         total += singleProjectorSample(P, L, exact);
                     }
                     
-                    clock_t end = clock();
-                    double time_spent = (double)(end - begin)/ CLOCKS_PER_SEC;
-                    printf("Thread %d done %d things in time %f.\n", world_rank, count, time_spent);
+                    //clock_t end = clock();
+                    //double time_spent = (double)(end - begin)/ CLOCKS_PER_SEC;
+                    //printf("Thread %d done %d things in time %f.\n", world_rank, count, time_spent);
                     sendDouble(total, 0);
                 } else { // add inner products
                     Complex total = {0,0};
@@ -283,9 +284,9 @@ void slave(void) {
                         total = ComplexAdd(total, part);
                     }
 
-                    clock_t end = clock();
-                    double time_spent = (double)(end - begin)/ CLOCKS_PER_SEC;
-                    printf("Thread %d done %d things in time %f.\n", world_rank, count, time_spent);
+                    //clock_t end = clock();
+                    //double time_spent = (double)(end - begin)/ CLOCKS_PER_SEC;
+                    //printf("Thread %d done %d things in time %f.\n", world_rank, count, time_spent);
                     sendComplex(total, 0);
                 }
 

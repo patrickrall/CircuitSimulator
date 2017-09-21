@@ -197,7 +197,7 @@ def probability(circ, measure, config={}):
                     if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
             else:
                 if config.get("samples")*config.get("bins")*2 > (2**len(L) - 1):
-                    config.get["noapprox"] = True
+                    config["noapprox"] = True
                     if verbose: print("More samples than terms in exact calculation. Disabling sampling.")
 
         if config.get("noapprox"):
