@@ -112,8 +112,9 @@ def truncate(n, P):
                 else: bad.append(X[i])
 
             # add bad rows to each other to cancel out 1's in y
-            bad = (bad + np.roll(bad, 1, axis=0)) % 2
-            bad = bad[1:]
+            if (len(bad) > 0):
+                bad = (bad + np.roll(bad, 1, axis=0)) % 2
+                bad = bad[1:]
 
             # ensure arrays are properly shaped, even if empty
             good = np.array(good).reshape((len(good), l))
