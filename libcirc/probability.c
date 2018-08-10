@@ -7,6 +7,7 @@
 #include "mpi.h"
 #include "utils/comms.h"
 
+#include <unistd.h>
 
 /********************* Prototypes *********************/
 
@@ -65,6 +66,7 @@ void master(int argc, char* argv[]) {
             return;
         }
     }
+
 
     /************* Parse args for decompose *************/
 
@@ -177,9 +179,7 @@ void master(int argc, char* argv[]) {
     }
 
     // random seed
-    int seed = (int)time(NULL);
-    srand(seed);
-
+    srand(getpid());
 
     for (int dest = 1; dest < world_size; dest++) {
         sendInt(1, dest); // init command

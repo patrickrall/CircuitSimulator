@@ -162,8 +162,8 @@ def probability(circ, measure, config={}):
                 config["samples"] = int(np.ceil(6 * chi * config.get("error")**(-2)))
                 config["bins"] = int(np.ceil(4.5 * np.log(1/config.get("failprob"))))
             else:  # just take the mean: L = chi/(p * e^2)
-                config["samples"] = int(np.ceil(chi * config.get("error")**(-1) *
-                                                config.get("failprob")**(-2)))
+                config["samples"] = int(np.ceil(chi * config.get("error")**(-2) *
+                                                config.get("failprob")**(-1)))
                 config["bins"] = 1
 
             if not quiet:
